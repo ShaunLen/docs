@@ -1,0 +1,410 @@
+---
+title: "Logging and Debugging"
+icon: "bug"
+description: "Conventions for logging, debugging, and observability at Northbound"
+---
+
+<Info>
+Good logging and debugging tools are essential for maintaining and troubleshooting systems. This page covers our conventions and best practices.
+</Info>
+
+---
+
+## Logging principles
+
+<CardGroup cols={3}>
+  <Card title="Actionable" icon="bullseye">
+    Logs should help you understand and fix problems
+  </Card>
+  <Card title="Contextual" icon="quote-left">
+    Include enough information to understand the situation
+  </Card>
+  <Card title="Appropriate" icon="scale-balanced">
+    Use the right level for the right situation
+  </Card>
+</CardGroup>
+
+---
+
+## Log levels
+
+<Tabs>
+  <Tab title="Error">
+    **Something is broken and needs attention**
+
+    ```csharp
+    Log.Error($"Failed to load definition: {id}");
+    ```
+
+    Use for:
+    - Failed operations that affect functionality
+    - Invalid states that shouldn't occur
+    - Unrecoverable issues
+  </Tab>
+  <Tab title="Warning">
+    **Something unexpected, but handled**
+
+    ```csharp
+    Log.Warning($"Player {playerId} disconnected during action");
+    ```
+
+    Use for:
+    - Recoverable issues
+    - Unexpected but handled situations
+    - Deprecation notices
+  </Tab>
+  <Tab title="Info">
+    **Notable events for understanding flow**
+
+    ```csharp
+    Log.Info($"Game started with {playerCount} players");
+    ```
+
+    Use for:
+    - Significant state changes
+    - Startup/shutdown events
+    - Configuration information
+  </Tab>
+  <Tab title="Debug">
+    **Detailed information for development**
+
+    ```csharp
+    Log.Debug($"Processing input: {input.Action} at {input.Timestamp}");
+    ```
+
+    Use for:
+    - Detailed flow tracing
+    - Development-only information
+    - Performance investigation
+  </Tab>
+</Tabs>
+
+---
+
+## Logging best practices
+
+### Include context
+
+<CardGroup cols={2}>
+  <Card title="Good" icon="check" color="#16A34A">
+    ```csharp
+    Log.Error($"Failed to spawn weapon '{weaponId}' " +
+              $"for player {playerId}: {exception.Message}");
+    ```
+
+    - What failed
+    - Relevant IDs
+    - Why it failed
+  </Card>
+  <Card title="Bad" icon="xmark" color="#EF4444">
+    ```csharp
+    Log.Error("Spawn failed");
+    Log.Error(exception.ToString());
+    ```
+
+    - No context
+    - Missing identifiers
+    - Hard to trace
+  </Card>
+</CardGroup>
+
+### Structured data
+
+```csharp
+// For complex data, consider structured logging
+Log.Info("Player action", new
+{
+    PlayerId = player.Id,
+    Action = action.Name,
+    Target = target?.Id,
+    Position = player.Position
+});
+```
+
+### Avoid log spam
+
+<Warning>
+Never log inside hot paths (per-frame, per-tick) without guards.
+</Warning>
+
+```csharp
+// Bad: Logs every frame
+void Update()
+{
+    Log.Debug($"Player position: {Position}");
+}
+
+// Good: Conditional or throttled
+void Update()
+{
+    if (debugPositionLogging && Time.Now > lastLogTime + 1f)
+    {
+        Log.Debug($"Player position: {Position}");
+        lastLogTime = Time.Now;
+    }
+}
+```
+
+---
+
+## Debug tooling patterns
+
+### Conditional compilation
+
+```csharp
+public class InteractionSystem
+{
+    [ConditionalAttribute("DEBUG")]
+    private void DebugDrawInteractionRange(Vector3 position, float range)
+    {
+        // Only compiled in debug builds
+        DebugOverlay.Sphere(position, range, Color.Yellow);
+    }
+}
+```
+
+### Debug commands
+
+<Steps>
+  <Step title="Create console commands">
+    ```csharp
+    [ConCmd.Server("debug_spawn_weapon")]
+    public static void DebugSpawnWeapon(string weaponId)
+    {
+        // Debug command implementation
+    }
+    ```
+  </Step>
+  <Step title="Guard appropriately">
+    ```csharp
+    [ConCmd.Server("debug_godmode")]
+    public static void DebugGodMode()
+    {
+        if (!Game.IsDebugBuild)
+        {
+            Log.Warning("Debug commands not available in release");
+            return;
+        }
+        // Implementation
+    }
+    ```
+  </Step>
+</Steps>
+
+### Debug visualisation
+
+```csharp
+public class InteractionDebugSystem
+{
+    public bool ShowInteractionRanges { get; set; }
+    public bool ShowTargetLines { get; set; }
+
+    public void DrawDebug()
+    {
+        if (!ShowInteractionRanges)
+            return;
+
+        foreach (var provider in activeProviders)
+        {
+            DebugOverlay.Sphere(provider.Position, provider.Range, Color.Green);
+        }
+    }
+}
+```
+
+---
+
+## Editor debugging
+
+### Validation feedback
+
+<CardGroup cols={2}>
+  <Card title="Immediate feedback" icon="bolt">
+    Show validation errors as users edit
+  </Card>
+  <Card title="Clear messages" icon="comment">
+    Explain what's wrong and how to fix it
+  </Card>
+</CardGroup>
+
+```csharp
+// In validation
+if (definition.Range <= 0)
+{
+    context.Error("Range must be greater than zero",
+        field: nameof(definition.Range),
+        suggestion: "Set a positive range value");
+}
+```
+
+### Inspector debugging
+
+<Tabs>
+  <Tab title="State inspection">
+    ```csharp
+    // Expose debug information in inspector
+    [Category("Debug")]
+    public string CurrentState => _stateMachine.CurrentState?.Name;
+
+    [Category("Debug")]
+    public int ActiveConnections => _connections.Count;
+    ```
+  </Tab>
+  <Tab title="Debug actions">
+    ```csharp
+    // Add debug buttons to inspector
+    [Button("Force Refresh")]
+    private void DebugForceRefresh()
+    {
+        RefreshAllConnections();
+    }
+
+    [Button("Dump State")]
+    private void DebugDumpState()
+    {
+        Log.Info($"Current state: {JsonSerializer.Serialize(this)}");
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Observability patterns
+
+### System metrics
+
+```csharp
+public class InputSystemMetrics
+{
+    public int InputsProcessedThisFrame { get; private set; }
+    public float AverageProcessingTime { get; private set; }
+    public int ActiveContexts { get; private set; }
+
+    public void RecordInput()
+    {
+        InputsProcessedThisFrame++;
+    }
+
+    public void EndFrame()
+    {
+        // Calculate averages, reset counters
+    }
+}
+```
+
+### Health checks
+
+```csharp
+public interface ISystemHealthCheck
+{
+    string SystemName { get; }
+    bool IsHealthy { get; }
+    string StatusMessage { get; }
+}
+
+public class HealthDashboard
+{
+    public void CheckAllSystems()
+    {
+        foreach (var system in healthChecks)
+        {
+            if (!system.IsHealthy)
+            {
+                Log.Warning($"{system.SystemName}: {system.StatusMessage}");
+            }
+        }
+    }
+}
+```
+
+---
+
+## Error reporting
+
+### What to capture
+
+<CardGroup cols={2}>
+  <Card title="Context" icon="info">
+    - Player state
+    - Recent actions
+    - System state
+    - Timing information
+  </Card>
+  <Card title="Technical" icon="code">
+    - Stack trace
+    - Exception details
+    - Build version
+    - Platform info
+  </Card>
+</CardGroup>
+
+### Exception handling
+
+```csharp
+try
+{
+    ProcessAction(action);
+}
+catch (Exception ex)
+{
+    Log.Error($"Failed to process action", new
+    {
+        Action = action.Name,
+        PlayerId = action.PlayerId,
+        Exception = ex.Message,
+        StackTrace = ex.StackTrace
+    });
+
+    // Graceful degradation
+    HandleActionFailure(action);
+}
+```
+
+---
+
+## Production vs development
+
+| Aspect | Development | Production |
+|--------|-------------|------------|
+| **Log level** | Debug | Info/Warning |
+| **Visual debug** | Enabled | Disabled |
+| **Console commands** | All available | Limited/None |
+| **Performance logging** | Detailed | Summary only |
+| **Error reporting** | Local logs | Remote aggregation |
+
+<Note>
+Use build configuration and feature flags to control debug functionality.
+</Note>
+
+---
+
+## Summary
+
+<Steps>
+  <Step title="Log with purpose">
+    Every log should help diagnose issues or understand behaviour
+  </Step>
+  <Step title="Include context">
+    IDs, states, and relevant data make logs actionable
+  </Step>
+  <Step title="Build debug tools">
+    Invest in visualisation and inspection early
+  </Step>
+  <Step title="Guard hot paths">
+    Never spam logs in per-frame code
+  </Step>
+</Steps>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Performance Philosophy" icon="gauge-high" href="/handbook/performance-philosophy">
+    Observability as part of performance work
+  </Card>
+  <Card title="Editor Debug Tools" icon="wrench" href="/editor/extending/debug-tools">
+    Building custom debug tools
+  </Card>
+</CardGroup>

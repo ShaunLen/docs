@@ -1,0 +1,275 @@
+---
+title: "Stable IDs"
+icon: "fingerprint"
+description: "Understanding and using stable identifiers for definitions"
+---
+
+<Info>
+Stable IDs are unique identifiers that allow definitions to be referenced reliably across saves, network, and data changes.
+</Info>
+
+---
+
+## Why stable IDs?
+
+<Tabs>
+  <Tab title="Problem: Array indices">
+    ```csharp
+    // Bad: Using array index
+    var weapon = weapons[3]; // What if order changes?
+
+    // Save file contains: "equippedWeapon: 3"
+    // After update, weapons reordered
+    // Player now has wrong weapon!
+    ```
+  </Tab>
+  <Tab title="Solution: Stable IDs">
+    ```csharp
+    // Good: Using stable ID
+    var weapon = Definitions.Get<Weapon>("weapon_pistol");
+
+    // Save file contains: "equippedWeapon: weapon_pistol"
+    // Data can change, ID stays the same
+    // Player keeps correct weapon
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## ID format
+
+Stable IDs follow a convention:
+
+```
+{category}_{name}
+```
+
+<CardGroup cols={2}>
+  <Card title="Good IDs" icon="check" color="#16A34A">
+    - `weapon_pistol`
+    - `item_health_pack`
+    - `ability_fireball`
+    - `npc_guard_basic`
+  </Card>
+  <Card title="Avoid" icon="xmark" color="#EF4444">
+    - `pistol` (no category)
+    - `Weapon_Pistol` (uppercase)
+    - `weapon-pistol` (hyphens)
+    - `1` (numeric only)
+  </Card>
+</CardGroup>
+
+### Naming rules
+
+| Rule | Example |
+|------|---------|
+| Lowercase only | `weapon_pistol` |
+| Underscores for spaces | `health_pack` |
+| Category prefix | `item_`, `weapon_`, `npc_` |
+| Descriptive names | `weapon_assault_rifle` |
+
+---
+
+## Generating IDs
+
+### Automatic generation
+
+```csharp
+public class Definition
+{
+    [AutoGenerate]
+    public string Id { get; set; }
+}
+
+// Editor generates: "weapon_" + slugified name
+// "Assault Rifle" -> "weapon_assault_rifle"
+```
+
+### Manual specification
+
+```csharp
+// In editor or JSON
+{
+    "id": "weapon_ak47",
+    "displayName": "AK-47",
+    ...
+}
+```
+
+---
+
+## ID uniqueness
+
+<Warning>
+IDs must be unique within their definition type.
+</Warning>
+
+```csharp
+// Valid: Same ID in different types
+Definitions.Get<WeaponDefinition>("rifle");  // OK
+Definitions.Get<ItemDefinition>("rifle");     // OK, different type
+
+// Invalid: Duplicate in same type
+// weapon_rifle.json with id "rifle"
+// weapon_carbine.json with id "rifle" // Error!
+```
+
+### Validation
+
+The system validates uniqueness at authoring time:
+
+```
+Error: Duplicate ID 'weapon_pistol'
+  - weapons/pistol.json
+  - weapons/sidearm.json
+```
+
+---
+
+## Referencing by ID
+
+### In code
+
+```csharp
+// Direct lookup
+var weapon = Definitions.Get<WeaponDefinition>("weapon_pistol");
+
+// Safe lookup
+if (Definitions.TryGet<WeaponDefinition>("weapon_pistol", out var weapon))
+{
+    // Use weapon
+}
+
+// Get all of type
+foreach (var weapon in Definitions.GetAll<WeaponDefinition>())
+{
+    Log.Info(weapon.Id);
+}
+```
+
+### In definitions
+
+```csharp
+public class WeaponDefinition : Definition
+{
+    [Reference(typeof(AmmoDefinition))]
+    public string AmmoTypeId { get; set; }
+
+    // Resolved reference
+    public AmmoDefinition AmmoType =>
+        Definitions.Get<AmmoDefinition>(AmmoTypeId);
+}
+```
+
+---
+
+## ID persistence
+
+### In save data
+
+```json
+{
+    "player": {
+        "equippedWeapon": "weapon_pistol",
+        "inventory": [
+            "item_health_pack",
+            "item_ammo_9mm",
+            "item_key_red"
+        ]
+    }
+}
+```
+
+### Over network
+
+```csharp
+public void SpawnWeapon(string weaponId)
+{
+    // ID sent over network, not full definition
+    RpcSpawnWeapon(weaponId);
+}
+
+[ClientRpc]
+private void RpcSpawnWeapon(string weaponId)
+{
+    var def = Definitions.Get<WeaponDefinition>(weaponId);
+    CreateWeaponVisual(def);
+}
+```
+
+---
+
+## ID changes and migration
+
+<Warning>
+Changing an ID is a breaking change that requires migration.
+</Warning>
+
+### ID aliasing
+
+```csharp
+[IdAlias("weapon_pistol_old", "weapon_pistol_v1")]
+public class WeaponDefinition : Definition
+{
+    public string Id { get; set; } = "weapon_pistol";
+}
+
+// Old IDs still resolve to current definition
+Definitions.Get<WeaponDefinition>("weapon_pistol_old"); // Works
+```
+
+### Migration
+
+```csharp
+public class IdMigration : IDefinitionMigration
+{
+    public void Migrate(MigrationContext context)
+    {
+        // Remap old IDs to new IDs
+        context.RemapId("weapon_gun", "weapon_pistol");
+        context.RemapId("item_hp", "item_health_pack");
+    }
+}
+```
+
+---
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Choose IDs carefully" icon="brain">
+    IDs should be:
+    - Descriptive but concise
+    - Unlikely to need changing
+    - Easy to type and remember
+  </Accordion>
+
+  <Accordion title="Use consistent prefixes" icon="tags">
+    Group related definitions:
+    - `weapon_*` for all weapons
+    - `item_*` for all items
+    - `ability_*` for all abilities
+  </Accordion>
+
+  <Accordion title="Never reuse IDs" icon="recycle">
+    If you delete a definition, don't reuse its ID. Old saves or references may still contain it.
+  </Accordion>
+
+  <Accordion title="Document ID meanings" icon="book">
+    Maintain a reference of what IDs mean, especially for non-obvious ones.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Authoring" icon="pen" href="/corelib/definitions/authoring">
+    Creating definitions with IDs
+  </Card>
+  <Card title="Validation" icon="shield" href="/corelib/definitions/validation">
+    Validating ID references
+  </Card>
+</CardGroup>

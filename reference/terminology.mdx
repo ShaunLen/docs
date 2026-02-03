@@ -1,0 +1,162 @@
+---
+title: "Terminology"
+icon: "book"
+description: "Standard terms and definitions used at Northbound"
+---
+
+<Info>
+This page defines common terms used throughout Northbound's codebase and documentation.
+</Info>
+
+---
+
+## Core concepts
+
+<AccordionGroup>
+  <Accordion title="CoreLib" icon="cubes">
+    Northbound's shared library providing foundational systems (input, interactions, state, definitions) and editor tooling.
+  </Accordion>
+
+  <Accordion title="Definition" icon="file-code">
+    A data object that describes game content. Authored in the editor, loaded at runtime. Examples: WeaponDefinition, ItemDefinition.
+  </Accordion>
+
+  <Accordion title="Workbench" icon="wrench">
+    CoreLib's framework for building editor applications with consistent UI, validation, and undo/redo.
+  </Accordion>
+
+  <Accordion title="Working Copy" icon="copy">
+    An editable copy of data used in editors. Changes are isolated until explicitly saved.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Input system
+
+| Term | Definition |
+|------|------------|
+| **Action** | A named player intent (e.g., "jump", "fire") independent of how it's triggered |
+| **Binding** | The connection between a hardware input (key/button) and an action |
+| **Context** | A collection of actions active during a game state (e.g., "gameplay", "menu") |
+| **Composite** | Multiple inputs combined to produce a single value (e.g., WASD for movement) |
+| **Modifier** | A transform applied to input (dead zone, scale, invert) |
+
+---
+
+## Interaction system
+
+| Term | Definition |
+|------|------------|
+| **Interactable** | An object that can be interacted with. Implements `IInteractable` |
+| **Interaction Definition** | Data describing a type of interaction (range, type, priority) |
+| **Interaction Provider** | Component that finds and manages available interactions |
+| **Hold Interaction** | An interaction requiring sustained input for a duration |
+| **Discovery** | The process of finding interactables within range |
+
+---
+
+## State & events
+
+| Term | Definition |
+|------|------------|
+| **Shared State** | Centralized, observable data that multiple systems access |
+| **Event** | A typed message dispatched to notify systems of something happening |
+| **Observer** | A pattern for reacting to state or property changes |
+| **Event Bus** | The system that routes events to subscribers |
+
+---
+
+## Architecture
+
+| Term | Definition |
+|------|------------|
+| **Runtime** | Code that runs during gameplay (not editor-only) |
+| **Editor** | Code that runs only during development in the editor |
+| **Server-authoritative** | The server owns truth; clients predict and reconcile |
+| **Validation** | Checking data for errors at authoring time |
+
+---
+
+## Data & authoring
+
+| Term | Definition |
+|------|------------|
+| **Stable ID** | A unique identifier that doesn't change (e.g., "weapon_pistol") |
+| **Reference** | A link from one definition to another via stable ID |
+| **Validation rule** | A check that ensures data meets requirements |
+| **Migration** | Updating data when definition schemas change |
+
+---
+
+## Editor tooling
+
+| Term | Definition |
+|------|------------|
+| **Dock** | A panel in a Workbench application (hierarchy, inspector, preview) |
+| **History** | The undo/redo stack tracking changes |
+| **Command** | A recorded action that can be undone/redone |
+
+---
+
+## Networking
+
+| Term | Definition |
+|------|------------|
+| **Authority** | Who owns and can modify state (server or client) |
+| **Prediction** | Client-side guessing of outcomes before server confirms |
+| **Reconciliation** | Client adjusting state to match server's authoritative response |
+| **Replication** | Server sending state to clients |
+
+---
+
+## Common abbreviations
+
+| Abbreviation | Meaning |
+|--------------|---------|
+| **DPS** | Damage per second |
+| **UI** | User interface |
+| **RPC** | Remote procedure call |
+| **ID** | Identifier |
+| **API** | Application programming interface |
+| **PR** | Pull request |
+
+---
+
+## Conventions
+
+### "Definition" vs "Instance"
+
+- **Definition:** The authored data template
+- **Instance:** A runtime object created from a definition
+
+```csharp
+// Definition: authored data
+var weaponDef = Definitions.Get<WeaponDefinition>("weapon_pistol");
+
+// Instance: runtime object
+var weapon = new Weapon(weaponDef);
+```
+
+### "System" vs "Manager"
+
+We avoid "Manager" in favor of more descriptive names:
+
+| Avoid | Prefer |
+|-------|--------|
+| InputManager | InputSystem |
+| PlayerManager | PlayerRegistry |
+| EventManager | EventBus |
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Naming Conventions" icon="tag" href="/reference/naming">
+    How to name things
+  </Card>
+  <Card title="Folder Structure" icon="folder-tree" href="/reference/folder-structure">
+    Project organization
+  </Card>
+</CardGroup>

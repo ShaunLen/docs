@@ -1,0 +1,332 @@
+---
+title: "Input Debugging"
+icon: "bug"
+description: "Troubleshooting and debugging input issues"
+---
+
+<Info>
+This page covers tools and techniques for debugging input problems.
+</Info>
+
+---
+
+## Debug overlay
+
+Enable the input debug overlay to visualise input state:
+
+```csharp
+// Enable debug overlay
+InputSystem.DebugOverlay = true;
+
+// Or toggle via console command
+// input_debug 1
+```
+
+The overlay shows:
+- Active context
+- Current action states
+- Active bindings
+- Input source values
+
+---
+
+## Logging
+
+### Enable input logging
+
+```csharp
+// Enable detailed input logging
+InputSystem.LogLevel = InputLogLevel.Verbose;
+
+// Log levels:
+// - None: No logging
+// - Errors: Only errors
+// - Warnings: Errors and warnings
+// - Info: State changes
+// - Verbose: All input events
+```
+
+### Log output examples
+
+```
+[Input] Context changed: gameplay -> menu
+[Input] Action pressed: jump (Space)
+[Input] Binding conflict: fire (LeftMouse) already bound to aim
+[Input] Rebind complete: jump = Space -> Enter
+```
+
+---
+
+## Common issues
+
+<AccordionGroup>
+  <Accordion title="Action not responding" icon="xmark">
+    **Symptoms:** `IsActionPressed` never returns true
+
+    **Checklist:**
+    1. Is the action defined? Check with `InputSystem.HasAction("action")`
+    2. Is the correct context active? Check `InputSystem.ActiveContext`
+    3. Is the action in the active context?
+    4. Is there a valid binding? Check `InputSystem.GetBinding("action")`
+    5. Is input being consumed elsewhere? Check consumption
+
+    **Debug:**
+    ```csharp
+    Log.Info($"Has action: {InputSystem.HasAction("jump")}");
+    Log.Info($"Active context: {InputSystem.ActiveContext}");
+    Log.Info($"Binding: {InputSystem.GetBinding("jump")?.DisplayName}");
+    ```
+  </Accordion>
+
+  <Accordion title="Wrong context active" icon="layer-group">
+    **Symptoms:** Expected actions don't work, unexpected ones do
+
+    **Causes:**
+    - Forgot to pop a pushed context
+    - Context set in wrong order
+    - Multiple systems fighting over context
+
+    **Debug:**
+    ```csharp
+    // Log the full context stack
+    foreach (var ctx in InputSystem.ContextStack)
+    {
+        Log.Info($"Context: {ctx}");
+    }
+    ```
+
+    **Fix:** Audit all `PushContext` and `PopContext` calls
+  </Accordion>
+
+  <Accordion title="Binding conflicts" icon="triangle-exclamation">
+    **Symptoms:** One action works, another with same key doesn't
+
+    **Debug:**
+    ```csharp
+    // Find all bindings for a key
+    var bindings = InputSystem.GetBindingsForSource("Space");
+    foreach (var binding in bindings)
+    {
+        Log.Info($"{binding.ActionId} bound to Space");
+    }
+    ```
+
+    **Fix:** Use different keys or different contexts
+  </Accordion>
+
+  <Accordion title="Axis values wrong" icon="sliders">
+    **Symptoms:** Movement is inverted, too fast, or jittery
+
+    **Causes:**
+    - Scale modifier incorrect
+    - Dead zone too large/small
+    - Invert modifier applied incorrectly
+
+    **Debug:**
+    ```csharp
+    // Log raw vs processed values
+    var raw = InputSystem.GetRawAxisValue("move");
+    var processed = InputSystem.GetAxis2D("move");
+    Log.Info($"Raw: {raw}, Processed: {processed}");
+    ```
+  </Accordion>
+
+  <Accordion title="Input consumed unexpectedly" icon="eye-slash">
+    **Symptoms:** Action fires sometimes but not others
+
+    **Causes:**
+    - UI consuming input
+    - Another system calling `ConsumeAction`
+    - Order of update calls
+
+    **Debug:**
+    ```csharp
+    // Check if action was consumed
+    if (InputSystem.WasActionConsumed("jump"))
+    {
+        Log.Info("Jump was consumed this frame");
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Debug commands
+
+Console commands for debugging:
+
+| Command | Description |
+|---------|-------------|
+| `input_debug 1` | Enable debug overlay |
+| `input_log verbose` | Set log level |
+| `input_context` | Print current context |
+| `input_bindings` | Print all bindings |
+| `input_actions` | Print all actions |
+| `input_reset` | Reset to default bindings |
+
+---
+
+## Runtime inspection
+
+### Action state inspection
+
+```csharp
+public class InputDebugPanel : Panel
+{
+    protected override void OnUpdate()
+    {
+        var actions = InputSystem.GetAllActions();
+
+        foreach (var action in actions)
+        {
+            var state = InputSystem.GetActionState(action.Id);
+            DrawActionState(action.Id, state);
+        }
+    }
+
+    private void DrawActionState(string actionId, InputActionState state)
+    {
+        var color = state.IsPressed ? Color.Green :
+                    state.IsHeld ? Color.Yellow : Color.Gray;
+
+        DrawText(actionId, color);
+        DrawText($"Value: {state.Value}", color);
+    }
+}
+```
+
+### Binding visualisation
+
+```csharp
+// Visualise all active bindings
+foreach (var binding in InputSystem.GetActiveBindings())
+{
+    DebugOverlay.ScreenText(
+        $"{binding.ActionId}: {binding.Source.DisplayName}",
+        position,
+        Color.White
+    );
+}
+```
+
+---
+
+## Unit testing input
+
+### Mocking input
+
+```csharp
+[TestClass]
+public class PlayerControllerTests
+{
+    [TestMethod]
+    public void Jump_WhenJumpPressed_SetsVelocity()
+    {
+        // Arrange
+        var mockInput = new MockInputSystem();
+        var controller = new PlayerController(mockInput);
+
+        // Act
+        mockInput.SimulatePress("jump");
+        controller.Update();
+
+        // Assert
+        Assert.IsTrue(controller.Velocity.Y > 0);
+    }
+}
+
+public class MockInputSystem : IInputSystem
+{
+    private HashSet<string> _pressedActions = new();
+
+    public void SimulatePress(string actionId)
+    {
+        _pressedActions.Add(actionId);
+    }
+
+    public bool IsActionPressed(string actionId)
+    {
+        return _pressedActions.Contains(actionId);
+    }
+}
+```
+
+---
+
+## Performance debugging
+
+### Input system metrics
+
+```csharp
+// Get input system performance metrics
+var metrics = InputSystem.GetMetrics();
+
+Log.Info($"Actions processed: {metrics.ActionsProcessedPerFrame}");
+Log.Info($"Bindings evaluated: {metrics.BindingsEvaluatedPerFrame}");
+Log.Info($"Processing time: {metrics.ProcessingTimeMs}ms");
+```
+
+### Profiling tips
+
+<CardGroup cols={2}>
+  <Card title="Reduce active actions" icon="filter">
+    Only include necessary actions in each context
+  </Card>
+  <Card title="Avoid polling" icon="clock">
+    Use events for non-frame-critical input
+  </Card>
+</CardGroup>
+
+---
+
+## Troubleshooting checklist
+
+<Steps>
+  <Step title="Verify action exists">
+    ```csharp
+    if (!InputSystem.HasAction("myAction"))
+        Log.Error("Action not found!");
+    ```
+  </Step>
+
+  <Step title="Check context">
+    ```csharp
+    Log.Info($"Current context: {InputSystem.ActiveContext}");
+    ```
+  </Step>
+
+  <Step title="Check binding">
+    ```csharp
+    var binding = InputSystem.GetBinding("myAction");
+    if (binding == null)
+        Log.Error("No binding found!");
+    ```
+  </Step>
+
+  <Step title="Check for consumption">
+    ```csharp
+    if (InputSystem.WasActionConsumed("myAction"))
+        Log.Warning("Action was consumed!");
+    ```
+  </Step>
+
+  <Step title="Enable verbose logging">
+    ```csharp
+    InputSystem.LogLevel = InputLogLevel.Verbose;
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Best Practices" icon="star" href="/corelib/input/best-practices">
+    Avoid common pitfalls
+  </Card>
+  <Card title="Debug Tools" icon="wrench" href="/editor/extending/debug-tools">
+    Building custom debug tools
+  </Card>
+</CardGroup>

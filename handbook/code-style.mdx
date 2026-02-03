@@ -4,202 +4,302 @@ icon: "code"
 description: "Code style and readability conventions used at Northbound"
 ---
 
-## Purpose
-
-These guidelines describe the **expected code style** across Northbound projects.
-
-They are not enforced by analyzers or tooling, but they *are* expectations — especially in shared code such as CoreLib.  
-Consistency and readability matter more than individual preference.
+<Info>
+These guidelines describe the **expected code style** across Northbound projects. Consistency and readability matter more than individual preference.
+</Info>
 
 ---
 
 ## General principles
 
-- Readability comes first
-- Consistency beats personal style
-- Prefer clarity over cleverness
+<CardGroup cols={3}>
+  <Card title="Readability first" icon="eye">
+    Code is read more often than written
+  </Card>
+  <Card title="Consistency wins" icon="equals">
+    Match existing patterns over personal style
+  </Card>
+  <Card title="Clarity over cleverness" icon="lightbulb">
+    Obvious is better than elegant
+  </Card>
+</CardGroup>
 
-Modern C# features are welcome, as long as they **improve** readability rather than obscure intent.
-
----
-
-## Naming
-
-### Types
-- Use **PascalCase**
-- Names should be descriptive and unambiguous
-- Avoid vague or generic names
-
-Good:
-- `InteractionProvider`
-- `InputContextStack`
-
-Bad:
-- `Manager`
-- `Utils`
-- `Data2`
+<Note>
+Modern C# features are welcome when they **improve** readability, not when they obscure intent.
+</Note>
 
 ---
 
-### Methods
-- Use **PascalCase**
-- Name methods as actions
-- Avoid catch-all or vague verbs
+## Naming conventions
 
-Good:
-- `ApplyInput`
-- `ValidateConfiguration`
+<Tabs>
+  <Tab title="Types">
+    Use **PascalCase**. Names should be descriptive and unambiguous.
 
-Bad:
-- `Handle`
-- `DoThing`
-- `Process`
+    | Good | Bad |
+    |------|-----|
+    | `InteractionProvider` | `Manager` |
+    | `InputContextStack` | `Utils` |
+    | `WeaponDefinition` | `Data2` |
+  </Tab>
+  <Tab title="Methods">
+    Use **PascalCase**. Name methods as actions.
 
----
+    | Good | Bad |
+    |------|-----|
+    | `ApplyInput` | `Handle` |
+    | `ValidateConfiguration` | `DoThing` |
+    | `RegisterInteraction` | `Process` |
+  </Tab>
+  <Tab title="Variables">
+    Use **camelCase**. Describe intent, not mechanics.
 
-### Variables and fields
-- Use **camelCase**
-- Names should describe intent, not mechanics
-- Single-letter variables are only acceptable in very small, obvious scopes
+    | Good | Bad |
+    |------|-----|
+    | `remainingHealth` | `hp` |
+    | `activeWeapon` | `w` |
+    | `playerCount` | `n` |
+  </Tab>
+  <Tab title="Booleans">
+    Name so they read naturally in conditionals.
 
----
-
-### Booleans
-- Name booleans so they read naturally in conditionals
-
-Good:
-- `isEnabled`
-- `hasAuthority`
-- `canInteract`
-
-Bad:
-- `enabledFlag`
-- `doThing`
+    | Good | Bad |
+    |------|-----|
+    | `isEnabled` | `enabledFlag` |
+    | `hasAuthority` | `authority` |
+    | `canInteract` | `doThing` |
+  </Tab>
+</Tabs>
 
 ---
 
 ## `var` usage
 
-We prefer using `var` for local variables.
+<Tip>
+We prefer `var` for local variables when the type is obvious.
+</Tip>
 
-This keeps code concise and avoids repeating information that is already obvious from the right-hand side.
+```csharp
+// Good: Type is obvious from the right side
+var player = GetPlayer();
+var weapons = new List<Weapon>();
+var config = LoadConfiguration();
+
+// Avoid var: Type is not immediately clear
+InputContext context = GetCurrentContext(); // What does this return?
+```
 
 Avoid `var` only when:
-- the inferred type is unclear
-- it harms readability
-- the type itself carries important meaning
+- The inferred type is unclear
+- It harms readability
+- The type itself carries important meaning
 
 ---
 
 ## Modern C# syntax
 
-Modern C# shorthand (expression-bodied members, pattern matching, etc.) is encouraged **when it improves readability**.
+<Tabs>
+  <Tab title="Acceptable">
+    ```csharp
+    // Expression-bodied members
+    public bool IsValid => _data != null && _data.IsComplete;
 
-Examples that are acceptable:
-- simple expression-bodied properties or methods
-- clear pattern matching
-- concise switch expressions
+    // Pattern matching
+    if (target is Player { IsAlive: true } player)
+        player.TakeDamage(damage);
 
-Avoid shorthand when it:
-- obscures control flow
-- makes debugging harder
-- requires mental parsing to understand intent
+    // Switch expressions
+    var icon = state switch
+    {
+        State.Active => "active.png",
+        State.Disabled => "disabled.png",
+        _ => "default.png"
+    };
+    ```
+  </Tab>
+  <Tab title="Avoid">
+    ```csharp
+    // Obscured control flow
+    var result = condition ? nested ? a : b : c;
+
+    // Over-nested pattern matching
+    if (obj is { Prop: { Inner: { Value: > 10 } } })
+
+    // Complex LINQ in one line
+    var x = items.Where(i => i.Active).Select(i => i.Value).GroupBy(v => v.Type).ToDictionary(g => g.Key, g => g.Sum());
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+Use shorthand when it makes code clearer. Avoid it when it requires mental parsing to understand.
+</Note>
 
 ---
 
 ## LINQ usage
 
-LINQ is acceptable and often improves clarity, but should be used thoughtfully.
+<CardGroup cols={2}>
+  <Card title="Good uses" icon="check" color="#16A34A">
+    - Making intent clearer
+    - Simple transformations
+    - Filtering and projection
+    - Cold paths
+  </Card>
+  <Card title="Be careful with" icon="warning" color="#EAB308">
+    - Complex chained queries
+    - Hot paths (allocations)
+    - When a loop is clearer
+    - Multiple enumerations
+  </Card>
+</CardGroup>
 
-Guidelines:
-- Prefer LINQ when it makes intent clearer
-- Avoid overly complex or deeply chained queries
-- Be mindful of performance in hot paths
-- Prefer explicit loops when they are more readable or efficient
-
-Readability should not be sacrificed just to use LINQ.
+<Warning>
+Readability should not be sacrificed just to use LINQ. Sometimes a `foreach` is better.
+</Warning>
 
 ---
 
 ## File and type organisation
 
-- One public type per file where possible
-- File name should match the primary type
-- Keep related private types close to their usage
+| Rule | Example |
+|------|---------|
+| One public type per file | `Player.cs` contains `public class Player` |
+| File name matches type | `InteractionProvider.cs` for `InteractionProvider` |
+| Related private types stay close | Nested classes or same file |
 
+<Note>
 Large files are acceptable if they remain cohesive and readable.
+</Note>
 
 ---
 
-## Method size and structure
+## Method structure
 
-- Methods should do one thing at one level of abstraction
-- Prefer small, focused methods
-- Use early returns to avoid deep nesting
+<Steps>
+  <Step title="Do one thing">
+    Methods should operate at one level of abstraction
+  </Step>
+  <Step title="Keep it focused">
+    Prefer small, single-purpose methods
+  </Step>
+  <Step title="Use early returns">
+    Guard clauses reduce nesting and clarify preconditions
+  </Step>
+</Steps>
 
-Extract logic when it improves clarity, not just to reduce line count.
+```csharp
+// Good: Early returns and single purpose
+public bool TryGetPlayer(int id, out Player player)
+{
+    player = null;
 
----
+    if (!_players.TryGetValue(id, out var found))
+        return false;
 
-## Control flow
+    if (!found.IsActive)
+        return false;
 
-- Prefer explicit control flow
-- Avoid deep nesting
-- Handle invalid states early with guard clauses
-
-Readable branching is more important than minimising lines of code.
+    player = found;
+    return true;
+}
+```
 
 ---
 
 ## Comments and documentation
 
-### Comments
-- Explain **why**, not **what**
-- Avoid comments that restate the code
-- Remove outdated comments aggressively
+<Tabs>
+  <Tab title="Code comments">
+    - Explain **why**, not **what**
+    - Avoid restating the code
+    - Remove outdated comments aggressively
 
-If code requires a comment to explain what it does, it likely needs refactoring.
+    ```csharp
+    // Bad: Restates the code
+    // Increment counter by one
+    counter++;
 
----
+    // Good: Explains why
+    // Skip validation in editor to speed up iteration
+    if (Application.isEditor)
+        return;
+    ```
+  </Tab>
+  <Tab title="XML documentation">
+    Required for public APIs in shared libraries.
 
-### XML documentation
-- Public APIs should include XML documentation
-- Focus on intent, constraints, and usage
-- Avoid repeating obvious details
-
-This is especially important for shared libraries like CoreLib.
+    ```csharp
+    /// <summary>
+    /// Attempts to find an interaction target within range of the player.
+    /// </summary>
+    /// <param name="player">The player performing the search.</param>
+    /// <param name="maxDistance">Maximum search distance in units.</param>
+    /// <returns>The nearest valid target, or null if none found.</returns>
+    public IInteractable FindTarget(Player player, float maxDistance)
+    ```
+  </Tab>
+</Tabs>
 
 ---
 
 ## Null handling
 
+<Warning>
 Nullability should be handled explicitly and intentionally.
+</Warning>
 
-Regardless of nullable reference type usage:
-- avoid ambiguous null states
-- validate inputs early
-- make expectations clear at API boundaries
+| Practice | Description |
+|----------|-------------|
+| Avoid ambiguous null states | If something can be null, make it obvious |
+| Validate inputs early | Check at API boundaries |
+| Make expectations clear | Naming and documentation should indicate nullability |
 
-If nullability is unclear, the code should make it obvious through naming or validation.
+```csharp
+// Clear nullable intent
+public Player? FindPlayer(int id) // May return null
+public Player GetPlayer(int id)   // Never returns null (throws if not found)
+```
 
 ---
 
 ## `#region` usage
 
-- `#region` is acceptable in **editor code** where large inspector or tooling classes may be unavoidable
-- `#region` should generally be avoided in **runtime / gameplay code**
+<Tabs>
+  <Tab title="Editor code">
+    Acceptable in editor code where large inspector or tooling classes may be unavoidable.
 
-Needing regions in runtime code is usually a sign the class is doing too much.
+    ```csharp
+    #region Inspector Drawing
+    // Large blocks of editor UI code
+    #endregion
+    ```
+  </Tab>
+  <Tab title="Runtime code">
+    Generally avoid. Needing regions usually means the class is doing too much.
+
+    <Warning>
+    If you need regions to navigate a runtime class, consider splitting it.
+    </Warning>
+  </Tab>
+</Tabs>
 
 ---
 
-## Namespaces and folder structure
+## Namespaces and structure
 
+<Tip>
 Namespaces should **always match folder structure**.
+</Tip>
 
-- Folder hierarchy should be reflected in namespaces
-- Nest directories and namespaces where it improves clarity
-- Avoid overly flat or overly deep structures
+```
+CoreLib/
+├── Input/
+│   ├── InputContext.cs      // namespace CoreLib.Input
+│   └── InputBinding.cs      // namespace CoreLib.Input
+├── Interactions/
+│   └── InteractionProvider.cs  // namespace CoreLib.Interactions
+```
 
 This consistency makes navigation and discovery significantly easier.
 
@@ -207,32 +307,54 @@ This consistency makes navigation and discovery significantly easier.
 
 ## Editor vs runtime code
 
-- Editor-only code should live in editor assemblies and namespaces
-- Runtime code should not depend on editor APIs
-- The separation should be obvious from structure alone
+<CardGroup cols={2}>
+  <Card title="Editor code" icon="window">
+    - Lives in editor assemblies
+    - Uses editor namespaces
+    - Can reference runtime code
+  </Card>
+  <Card title="Runtime code" icon="play">
+    - Lives in runtime assemblies
+    - Never depends on editor APIs
+    - Separation obvious from structure
+  </Card>
+</CardGroup>
 
+<Warning>
 Leaks between editor and runtime code should be treated as design issues.
-
----
-
-## Reviews and consistency
-
-Code reviews are not the place for stylistic debates.
-
-If a pattern already exists:
-- follow it
-- improve it consistently if needed
-- avoid introducing parallel styles
-
-When unsure, default to **predictability**.
+</Warning>
 
 ---
 
 ## Summary
 
 Good code style:
-- communicates intent clearly
-- reduces cognitive load
-- scales with project size and team size
 
+<CardGroup cols={3}>
+  <Card title="Communicates" icon="comments">
+    Intent is clear to readers
+  </Card>
+  <Card title="Reduces load" icon="brain">
+    Easy to understand quickly
+  </Card>
+  <Card title="Scales" icon="arrow-up-right-dots">
+    Works for teams and large projects
+  </Card>
+</CardGroup>
+
+<Note>
 These guidelines exist to support those goals, not to constrain reasonable judgment.
+</Note>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Architecture Conventions" icon="sitemap" href="/handbook/architecture-conventions">
+    How we structure systems and projects
+  </Card>
+  <Card title="Naming Conventions" icon="tag" href="/reference/naming">
+    Detailed naming rules and examples
+  </Card>
+</CardGroup>

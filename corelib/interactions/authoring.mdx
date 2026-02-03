@@ -1,0 +1,431 @@
+---
+title: "Authoring Interactions"
+icon: "pen"
+description: "Creating interactable objects and defining interactions"
+---
+
+<Info>
+This page covers how to create interactable objects and define interaction behaviours.
+</Info>
+
+---
+
+## Creating an interactable
+
+### Basic interactable
+
+<Steps>
+  <Step title="Implement IInteractable">
+    ```csharp
+    public class SimpleButton : Component, IInteractable
+    {
+        [Property]
+        public InteractionDefinition Interaction { get; set; }
+
+        public bool CanInteract(Player player) => true;
+
+        public void OnInteract(Player player)
+        {
+            Press();
+        }
+
+        private void Press()
+        {
+            // Button logic
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Assign interaction definition">
+    In the editor, assign an InteractionDefinition to the component.
+  </Step>
+
+  <Step title="Position interaction point (optional)">
+    Add an interaction point for UI placement:
+
+    ```csharp
+    [Property]
+    public Vector3 InteractionPoint { get; set; }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Conditional interactions
+
+### State-based availability
+
+```csharp
+public class LockedDoor : Component, IInteractable
+{
+    [Property]
+    public InteractionDefinition OpenInteraction { get; set; }
+
+    [Property]
+    public InteractionDefinition LockedInteraction { get; set; }
+
+    [Property]
+    public string RequiredKeyId { get; set; }
+
+    private bool _isLocked = true;
+
+    public InteractionDefinition Interaction =>
+        _isLocked ? LockedInteraction : OpenInteraction;
+
+    public bool CanInteract(Player player)
+    {
+        if (_isLocked)
+        {
+            // Show "locked" interaction but can only use if has key
+            return player.Inventory.HasItem(RequiredKeyId);
+        }
+        return true;
+    }
+
+    public void OnInteract(Player player)
+    {
+        if (_isLocked)
+        {
+            _isLocked = false;
+            player.Inventory.RemoveItem(RequiredKeyId);
+            PlaySound("unlock");
+        }
+
+        Open();
+    }
+}
+```
+
+### Player state requirements
+
+```csharp
+public bool CanInteract(Player player)
+{
+    // Must be alive
+    if (!player.IsAlive)
+        return false;
+
+    // Must have free hands
+    if (player.IsHoldingItem)
+        return false;
+
+    // Must not be in combat
+    if (player.IsInCombat)
+        return false;
+
+    return true;
+}
+```
+
+---
+
+## Multi-interaction objects
+
+For objects with multiple actions:
+
+```csharp
+public class Terminal : Component, IMultiInteractable
+{
+    [Property]
+    public InteractionDefinition UseInteraction { get; set; }
+
+    [Property]
+    public InteractionDefinition HackInteraction { get; set; }
+
+    [Property]
+    public InteractionDefinition DownloadInteraction { get; set; }
+
+    private bool _isHacked;
+    private bool _hasData;
+
+    public IEnumerable<InteractionDefinition> GetInteractions(Player player)
+    {
+        // Always available
+        yield return UseInteraction;
+
+        // Only if not hacked and player has skill
+        if (!_isHacked && player.HasSkill("hacking"))
+        {
+            yield return HackInteraction;
+        }
+
+        // Only if has data to download
+        if (_hasData)
+        {
+            yield return DownloadInteraction;
+        }
+    }
+
+    public bool CanInteract(Player player, InteractionDefinition interaction)
+    {
+        return true; // Already filtered in GetInteractions
+    }
+
+    public void OnInteract(Player player, InteractionDefinition interaction)
+    {
+        switch (interaction.Id)
+        {
+            case "terminal_use":
+                OpenTerminalUI(player);
+                break;
+
+            case "terminal_hack":
+                StartHacking(player);
+                break;
+
+            case "terminal_download":
+                DownloadData(player);
+                break;
+        }
+    }
+}
+```
+
+---
+
+## Hold interactions
+
+For interactions that require holding:
+
+```csharp
+public class Revivable : Component, IInteractable, IHoldInteractable
+{
+    [Property]
+    public InteractionDefinition Interaction { get; set; }
+
+    public bool CanInteract(Player player)
+    {
+        return player.Team == Team && player.IsAlive;
+    }
+
+    public void OnInteract(Player player)
+    {
+        // Called when hold completes
+        Revive();
+    }
+
+    // IHoldInteractable
+    public void OnHoldStart(Player player)
+    {
+        StartReviveEffect();
+    }
+
+    public void OnHoldProgress(Player player, float progress)
+    {
+        UpdateReviveEffect(progress);
+    }
+
+    public void OnHoldCancelled(Player player)
+    {
+        CancelReviveEffect();
+    }
+}
+```
+
+### Hold interaction definition
+
+```csharp
+var reviveInteraction = new InteractionDefinition
+{
+    Id = "revive",
+    DisplayName = "Revive",
+    Type = InteractionType.Hold,
+    HoldDuration = 5.0f,  // 5 seconds to complete
+    CanCancel = true,     // Can release to cancel
+    ShowProgress = true   // Show progress bar
+};
+```
+
+---
+
+## Custom interaction points
+
+Control where the interaction prompt appears:
+
+```csharp
+public class LargeObject : Component, IInteractable, IInteractionPoint
+{
+    [Property]
+    public InteractionDefinition Interaction { get; set; }
+
+    [Property]
+    public Transform InteractionTransform { get; set; }
+
+    // IInteractionPoint
+    public Vector3 GetInteractionPoint()
+    {
+        if (InteractionTransform != null)
+            return InteractionTransform.Position;
+
+        return Transform.Position + Vector3.Up * 1f;
+    }
+
+    public Vector3 GetInteractionNormal()
+    {
+        return Transform.Forward;
+    }
+}
+```
+
+---
+
+## Interaction ranges
+
+### Per-object range override
+
+```csharp
+public class LongRangeInteractable : Component, IInteractable, IInteractionRange
+{
+    [Property]
+    public float CustomRange { get; set; } = 10f;
+
+    // IInteractionRange
+    public float GetInteractionRange()
+    {
+        return CustomRange;
+    }
+}
+```
+
+### Angle-based interaction
+
+```csharp
+public class DirectionalInteractable : Component, IInteractable
+{
+    [Property]
+    public float InteractionAngle { get; set; } = 90f;
+
+    public bool CanInteract(Player player)
+    {
+        var toPlayer = (player.Position - Position).Normal;
+        var dot = Vector3.Dot(Transform.Forward, toPlayer);
+        var angle = MathF.Acos(dot) * (180f / MathF.PI);
+
+        return angle <= InteractionAngle;
+    }
+}
+```
+
+---
+
+## Validation and feedback
+
+### Validation result
+
+```csharp
+public class SecureContainer : Component, IInteractable, IValidatedInteraction
+{
+    public ValidationResult ValidateInteraction(Player player)
+    {
+        if (!player.HasClearance(RequiredClearance))
+        {
+            return ValidationResult.Fail(
+                "Insufficient clearance",
+                ValidationSeverity.Warning
+            );
+        }
+
+        if (IsOnCooldown)
+        {
+            return ValidationResult.Fail(
+                $"Wait {CooldownRemaining:F1}s",
+                ValidationSeverity.Info
+            );
+        }
+
+        return ValidationResult.Success;
+    }
+}
+```
+
+### Showing feedback
+
+```csharp
+// In your UI
+public void UpdateInteractionPrompt(InteractionData data)
+{
+    if (data.ValidationResult.IsSuccess)
+    {
+        _promptText.Text = data.Interaction.DisplayName;
+        _promptText.Color = Color.White;
+    }
+    else
+    {
+        _promptText.Text = data.ValidationResult.Message;
+        _promptText.Color = Color.Red;
+    }
+}
+```
+
+---
+
+## Network considerations
+
+### Server validation
+
+```csharp
+public class NetworkedInteractable : Component, IInteractable
+{
+    public void OnInteract(Player player)
+    {
+        if (Game.IsServer)
+        {
+            // Server executes the interaction
+            ExecuteInteraction(player);
+        }
+        else
+        {
+            // Client requests interaction
+            RequestInteraction(player.NetworkId);
+        }
+    }
+
+    [Broadcast]
+    private void RequestInteraction(int playerId)
+    {
+        if (!Game.IsServer)
+            return;
+
+        var player = Players.Get(playerId);
+
+        if (CanInteract(player))
+        {
+            ExecuteInteraction(player);
+        }
+    }
+}
+```
+
+---
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Keep CanInteract fast" icon="bolt">
+    This is called frequently — avoid expensive checks
+  </Card>
+  <Card title="Validate on server" icon="server">
+    Never trust client validation for gameplay
+  </Card>
+  <Card title="Provide clear feedback" icon="comment">
+    Tell players why they can't interact
+  </Card>
+  <Card title="Use appropriate types" icon="list">
+    Match interaction type to the action
+  </Card>
+</CardGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Interaction Concepts" icon="lightbulb" href="/corelib/interactions/concepts">
+    Understanding interaction fundamentals
+  </Card>
+  <Card title="Interaction Editor" icon="window" href="/editor/tools/interaction-editor">
+    Creating definitions in the editor
+  </Card>
+</CardGroup>

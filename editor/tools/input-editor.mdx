@@ -1,0 +1,240 @@
+---
+title: "Input Editor"
+icon: "gamepad"
+description: "Visual editor for configuring the Enhanced Input system"
+---
+
+<Info>
+The Input Editor provides a visual interface for authoring input actions, bindings, and contexts.
+</Info>
+
+---
+
+## Overview
+
+The Input Editor lets you:
+
+<CardGroup cols={2}>
+  <Card title="Define actions" icon="bolt">
+    Create input actions like "Jump", "Fire", "Move"
+  </Card>
+  <Card title="Configure bindings" icon="keyboard">
+    Map keys and buttons to actions
+  </Card>
+  <Card title="Create contexts" icon="layer-group">
+    Group actions into gameplay states
+  </Card>
+  <Card title="Test input" icon="vial">
+    Live preview of input behavior
+  </Card>
+</CardGroup>
+
+---
+
+## Opening the editor
+
+Access the Input Editor from:
+- **Menu:** Tools > CoreLib > Input Editor
+- **Shortcut:** Ctrl+Shift+I
+
+---
+
+## Interface
+
+```
+┌─────────────────────────────────────────────────────┐
+│ Input Editor                              [Save] [×]│
+├──────────────┬──────────────────────────────────────┤
+│ Contexts     │ Properties                           │
+│ ├─ gameplay  │ ┌──────────────────────────────────┐ │
+│ │  ├─ move   │ │ Action: move                     │ │
+│ │  ├─ jump   │ │ Type: Axis2D                     │ │
+│ │  └─ fire   │ │ Display Name: Movement           │ │
+│ ├─ menu      │ │                                  │ │
+│ │  ├─ select │ │ Bindings:                        │ │
+│ │  └─ back   │ │ ├─ WASD (Composite)             │ │
+│ └─ vehicle   │ │ └─ Left Stick                   │ │
+│              │ └──────────────────────────────────┘ │
+├──────────────┴──────────────────────────────────────┤
+│ Validation: No errors                               │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Creating actions
+
+<Steps>
+  <Step title="Select a context">
+    Click on the context where the action should live
+  </Step>
+  <Step title="Add action">
+    Right-click > Add Action, or use the + button
+  </Step>
+  <Step title="Configure properties">
+    - **ID:** Unique identifier (e.g., `jump`)
+    - **Display Name:** Shown to players
+    - **Type:** Digital, Axis1D, or Axis2D
+  </Step>
+  <Step title="Add bindings">
+    Click "Add Binding" and configure the default key/button
+  </Step>
+</Steps>
+
+---
+
+## Action types
+
+<Tabs>
+  <Tab title="Digital">
+    On/off actions like jump, fire, interact.
+
+    **Properties:**
+    - Triggers: Pressed, Held, Released
+    - No additional configuration
+  </Tab>
+  <Tab title="Axis1D">
+    Single-axis input like throttle, zoom.
+
+    **Properties:**
+    - Value range (-1 to 1 or 0 to 1)
+    - Dead zone
+    - Sensitivity curve
+  </Tab>
+  <Tab title="Axis2D">
+    Two-axis input like movement, look.
+
+    **Properties:**
+    - X and Y configuration
+    - Circular vs square dead zone
+    - Per-axis sensitivity
+  </Tab>
+</Tabs>
+
+---
+
+## Configuring bindings
+
+### Simple binding
+
+1. Click "Add Binding"
+2. Press the key or button
+3. Binding is recorded
+
+### Composite binding (WASD)
+
+1. Click "Add Composite"
+2. Configure each direction:
+   - Up: W
+   - Down: S
+   - Left: A
+   - Right: D
+
+### Modifier keys
+
+1. Add binding
+2. Check "Modifiers"
+3. Select Shift/Ctrl/Alt
+
+---
+
+## Creating contexts
+
+<Steps>
+  <Step title="Add context">
+    Right-click in hierarchy > Add Context
+  </Step>
+  <Step title="Name the context">
+    Use descriptive names like "gameplay", "menu", "vehicle"
+  </Step>
+  <Step title="Configure blocking">
+    Set whether this context blocks lower contexts
+  </Step>
+  <Step title="Add actions">
+    Create or move actions into the context
+  </Step>
+</Steps>
+
+---
+
+## Validation
+
+The editor validates:
+
+| Check | Description |
+|-------|-------------|
+| **Unique IDs** | No duplicate action IDs |
+| **Valid bindings** | Bindings reference valid keys |
+| **No conflicts** | Same key not bound twice in context |
+| **Required fields** | Display names present |
+
+Errors appear in the validation panel and must be fixed before saving.
+
+---
+
+## Testing input
+
+### Live preview
+
+1. Click "Test Mode"
+2. Press keys/buttons
+3. See which actions fire
+4. Check axis values
+
+### Device testing
+
+- Switch between keyboard and gamepad views
+- Test bindings for each device
+- Verify cross-device consistency
+
+---
+
+## Import/Export
+
+### Export bindings
+
+```
+File > Export > JSON
+```
+
+Creates a JSON file with all input configuration.
+
+### Import bindings
+
+```
+File > Import > JSON
+```
+
+Merges or replaces existing configuration.
+
+---
+
+## Tips
+
+<CardGroup cols={2}>
+  <Card title="Start with contexts" icon="layer-group">
+    Define your game states before adding actions
+  </Card>
+  <Card title="Use consistent naming" icon="tag">
+    Lowercase IDs with underscores
+  </Card>
+  <Card title="Test frequently" icon="vial">
+    Use live preview while authoring
+  </Card>
+  <Card title="Document intent" icon="comment">
+    Use display names that explain the action
+  </Card>
+</CardGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Input System" icon="gamepad" href="/corelib/input/overview">
+    Understanding Enhanced Input
+  </Card>
+  <Card title="Rebinding" icon="keyboard" href="/corelib/input/rebinding">
+    Runtime rebinding
+  </Card>
+</CardGroup>

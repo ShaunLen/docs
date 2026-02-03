@@ -1,0 +1,253 @@
+---
+title: "Interaction Editor"
+icon: "hand-pointer"
+description: "Visual editor for authoring interaction definitions"
+---
+
+<Info>
+The Interaction Editor provides tools for creating and testing interaction definitions.
+</Info>
+
+---
+
+## Overview
+
+The Interaction Editor lets you:
+
+<CardGroup cols={2}>
+  <Card title="Define interactions" icon="file-code">
+    Create interaction types with properties
+  </Card>
+  <Card title="Configure behavior" icon="sliders">
+    Set ranges, durations, priorities
+  </Card>
+  <Card title="Preview" icon="eye">
+    See how interactions will appear
+  </Card>
+  <Card title="Test" icon="vial">
+    Test interactions in editor
+  </Card>
+</CardGroup>
+
+---
+
+## Opening the editor
+
+Access the Interaction Editor from:
+- **Menu:** Tools > CoreLib > Interaction Editor
+- **Shortcut:** Ctrl+Shift+N
+
+---
+
+## Creating interactions
+
+<Steps>
+  <Step title="Create new definition">
+    Click "New Interaction" or Ctrl+N
+  </Step>
+  <Step title="Set basic properties">
+    - **ID:** Unique identifier
+    - **Display Name:** Shown in prompts
+    - **Icon:** Visual indicator
+  </Step>
+  <Step title="Configure behavior">
+    - **Type:** Instant, Hold, Toggle
+    - **Range:** Interaction distance
+    - **Priority:** Selection order
+  </Step>
+  <Step title="Set input">
+    Choose which input action triggers this interaction
+  </Step>
+</Steps>
+
+---
+
+## Interaction properties
+
+### Basic settings
+
+| Property | Description |
+|----------|-------------|
+| **ID** | Unique identifier |
+| **Display Name** | UI prompt text |
+| **Icon** | Icon for UI display |
+| **Input Action** | Required action (e.g., "interact") |
+
+### Behavior settings
+
+| Property | Description |
+|----------|-------------|
+| **Type** | Instant, Hold, Toggle |
+| **Range** | Maximum distance |
+| **Priority** | Selection priority |
+| **Cooldown** | Time between uses |
+
+### Hold interaction settings
+
+| Property | Description |
+|----------|-------------|
+| **Duration** | Hold time required |
+| **Can Cancel** | Allow releasing early |
+| **Show Progress** | Display progress bar |
+
+---
+
+## Interaction types
+
+<Tabs>
+  <Tab title="Instant">
+    Executes immediately on input.
+
+    **Use for:**
+    - Picking up items
+    - Pressing buttons
+    - Opening doors
+
+    **Settings:**
+    - No additional configuration
+  </Tab>
+  <Tab title="Hold">
+    Requires holding input for duration.
+
+    **Use for:**
+    - Reviving players
+    - Hacking terminals
+    - Defusing bombs
+
+    **Settings:**
+    - Duration (seconds)
+    - Cancel allowed
+    - Progress display
+  </Tab>
+  <Tab title="Toggle">
+    Alternates between states.
+
+    **Use for:**
+    - Switches
+    - Lights
+    - Doors (open/close)
+
+    **Settings:**
+    - None (behavior in code)
+  </Tab>
+</Tabs>
+
+---
+
+## Preview panel
+
+The preview shows:
+- Interaction prompt appearance
+- Icon and text
+- Input hint
+- Progress bar (for hold)
+
+Customize preview:
+- Background context
+- Distance simulation
+- Device type (keyboard/gamepad)
+
+---
+
+## Validation
+
+The editor validates:
+
+| Check | Description |
+|-------|-------------|
+| **Required fields** | ID, display name present |
+| **Valid range** | Range > 0 |
+| **Valid duration** | Hold duration > 0 |
+| **Input action exists** | Referenced action defined |
+
+---
+
+## Testing interactions
+
+### In-editor testing
+
+1. Open test mode
+2. Place test interactables
+3. Move camera to test discovery
+4. Trigger interactions
+
+### Integration testing
+
+Link to a test scene to see interactions in context.
+
+---
+
+## Organization
+
+### Categories
+
+Group interactions by type:
+
+```
+interactions/
+├── combat/
+│   ├── reload.json
+│   └── pickup_ammo.json
+├── environment/
+│   ├── open_door.json
+│   └── use_terminal.json
+└── social/
+    ├── talk.json
+    └── trade.json
+```
+
+### Inheritance
+
+Create base interactions:
+
+```json
+{
+  "id": "base_pickup",
+  "isAbstract": true,
+  "type": "Instant",
+  "icon": "hand-grab",
+  "inputAction": "interact"
+}
+```
+
+Derive specific interactions:
+
+```json
+{
+  "id": "pickup_weapon",
+  "inherits": "base_pickup",
+  "displayName": "Pick up weapon"
+}
+```
+
+---
+
+## Tips
+
+<CardGroup cols={2}>
+  <Card title="Consistent naming" icon="tag">
+    Use prefixes like `door_`, `item_`, `npc_`
+  </Card>
+  <Card title="Appropriate types" icon="list">
+    Match type to interaction feel
+  </Card>
+  <Card title="Test ranges" icon="ruler">
+    Verify discovery feels right in-game
+  </Card>
+  <Card title="Priority carefully" icon="sort">
+    Higher priority = shown first
+  </Card>
+</CardGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Interaction System" icon="hand-pointer" href="/corelib/interactions/overview">
+    Understanding interactions
+  </Card>
+  <Card title="Authoring" icon="pen" href="/corelib/interactions/authoring">
+    Creating interactables in code
+  </Card>
+</CardGroup>

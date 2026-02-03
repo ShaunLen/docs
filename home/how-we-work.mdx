@@ -6,44 +6,79 @@ description: "How engineering work is approached and carried out at Northbound"
 
 ## High-level approach
 
-At Northbound, we optimise for **long-lived projects** and **shared ownership**.
+<Info>
+We optimise for **long-lived projects** and **shared ownership**.
+</Info>
 
 That means we prefer:
-- clear, maintainable solutions over clever ones
-- systems that scale with team size and project length
-- decisions that reduce future friction, even if they take longer up front
 
-We assume contributors are experienced developers and trust them to make good technical decisions — this document describes the *shape* of how we work, not a rigid rulebook.
+| We prefer... | Over... |
+|--------------|---------|
+| Clear, maintainable solutions | Clever ones |
+| Systems that scale | Quick hacks |
+| Decisions that reduce future friction | Short-term speed |
+
+<Note>
+We assume contributors are experienced developers and trust them to make good technical decisions. This describes the *shape* of how we work, not a rigid rulebook.
+</Note>
 
 ---
 
 ## Shared responsibility
 
-All code is considered **team-owned**.
+<Warning>
+There is no "my system, your system" — all code is **team-owned**.
+</Warning>
 
-- There is no “my system, your system”
-- Improvements to shared code (especially CoreLib) are encouraged
-- If you spot an issue that will affect future work, it’s worth fixing properly
-
-Changes that affect multiple projects should be discussed early to avoid surprises.
+<Steps>
+  <Step title="Own the code collectively">
+    Improvements to shared code, especially CoreLib, are encouraged from everyone.
+  </Step>
+  <Step title="Fix issues proactively">
+    If you spot an issue that will affect future work, it's worth fixing properly.
+  </Step>
+  <Step title="Communicate early">
+    Changes that affect multiple projects should be discussed before implementation.
+  </Step>
+</Steps>
 
 ---
 
 ## CoreLib-first mindset
 
-CoreLib exists to absorb complexity so individual games don’t have to.
+CoreLib exists to absorb complexity so individual games don't have to.
 
 When working on gameplay features, ask:
-- Is this something we’ll need again?
-- Does this belong in a shared system?
-- Would future projects benefit from this being generalised?
 
-If the answer is “yes”, the preferred approach is:
-1. improve or extend CoreLib
-2. document the change
-3. keep game code thin
+<CardGroup cols={3}>
+  <Card title="Reusable?" icon="recycle">
+    Is this something we'll need again?
+  </Card>
+  <Card title="Shared system?" icon="cubes">
+    Does this belong in a shared system?
+  </Card>
+  <Card title="Future benefit?" icon="forward">
+    Would future projects benefit from generalisation?
+  </Card>
+</CardGroup>
 
+If the answer is "yes", the preferred approach is:
+
+<Steps>
+  <Step title="Improve or extend CoreLib">
+    Add or enhance shared functionality
+  </Step>
+  <Step title="Document the change">
+    Update this wiki with the new capability
+  </Step>
+  <Step title="Keep game code thin">
+    Game-specific code should compose shared systems, not reimplement them
+  </Step>
+</Steps>
+
+<Tip>
 Not everything belongs in CoreLib — but repeated patterns often do.
+</Tip>
 
 ---
 
@@ -51,25 +86,35 @@ Not everything belongs in CoreLib — but repeated patterns often do.
 
 We strongly prefer **authoring and validation in the editor** rather than in code or data files.
 
-If a system involves:
-- configuration
-- tuning
-- content authoring
-- state inspection
-
-…it should probably have editor tooling.
-
-This reduces runtime errors, speeds up iteration, and makes systems easier to understand for everyone.
+<Tabs>
+  <Tab title="Should have tooling">
+    - Configuration
+    - Tuning values
+    - Content authoring
+    - State inspection
+    - Debug views
+  </Tab>
+  <Tab title="Benefits">
+    - Reduces runtime errors
+    - Speeds up iteration
+    - Makes systems understandable
+    - Enables non-programmers to contribute
+  </Tab>
+</Tabs>
 
 ---
 
 ## Iteration and refactoring
 
+<Info>
 Refactoring is a normal and expected part of development.
+</Info>
 
-- Small refactors should happen opportunistically
-- Larger refactors should be planned and communicated
-- Breaking changes are acceptable if they meaningfully improve clarity or correctness
+| Type | Approach |
+|------|----------|
+| **Small refactors** | Happen opportunistically |
+| **Large refactors** | Planned and communicated |
+| **Breaking changes** | Acceptable if they meaningfully improve clarity or correctness |
 
 The goal is not to avoid change, but to make change **safe and intentional**.
 
@@ -78,32 +123,57 @@ The goal is not to avoid change, but to make change **safe and intentional**.
 ## Communication and decisions
 
 When making architectural decisions:
-- prefer writing things down over relying on tribal knowledge
-- capture *why* a decision was made, not just *what* was done
-- keep discussion close to the code (PRs, issues, docs)
 
-This wiki is a valid place to record decisions that affect how we work or build systems.
+<AccordionGroup>
+  <Accordion title="Write things down" icon="pen">
+    Prefer documentation over tribal knowledge. Future you (and your teammates) will thank you.
+  </Accordion>
+  <Accordion title="Capture the 'why'" icon="circle-question">
+    Record why a decision was made, not just what was done. Context matters.
+  </Accordion>
+  <Accordion title="Keep discussion close to code" icon="code-branch">
+    Use PRs, issues, and this wiki. Slack messages disappear; documentation persists.
+  </Accordion>
+</AccordionGroup>
 
 ---
 
 ## Quality bar
 
 Code is expected to:
-- be readable without extensive explanation
-- fail loudly and clearly in development builds
-- include validation and debug tooling where appropriate
-- follow the conventions documented in the Handbook
 
-We don’t aim for perfection (we all make plenty of mistakes), but we do aim for consistency.
+<CardGroup cols={2}>
+  <Card title="Readable" icon="eye">
+    Understandable without extensive explanation
+  </Card>
+  <Card title="Fail loudly" icon="bell">
+    Clear errors in development builds
+  </Card>
+  <Card title="Validated" icon="check">
+    Include validation and debug tooling
+  </Card>
+  <Card title="Consistent" icon="equals">
+    Follow Handbook conventions
+  </Card>
+</CardGroup>
+
+<Note>
+We don't aim for perfection, but we do aim for consistency.
+</Note>
 
 ---
 
 ## In practice
 
-In day-to-day work, this usually means:
-- spending time upfront on structure and APIs
-- investing in tooling when it reduces long-term cost
-- keeping gameplay code simple by pushing complexity into shared systems
-- revisiting and improving existing systems as requirements evolve
+Day-to-day, this means:
 
+| Activity | Investment |
+|----------|-----------|
+| Structure and APIs | Time upfront |
+| Tooling | When it reduces long-term cost |
+| Gameplay code | Keep simple by using shared systems |
+| Existing systems | Revisit and improve as requirements evolve |
+
+<Tip>
 This approach trades short-term speed for long-term leverage — and that trade-off is intentional.
+</Tip>

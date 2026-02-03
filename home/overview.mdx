@@ -6,12 +6,23 @@ description: "How Northbound approaches building games and shared systems"
 
 ## Northbound at a glance
 
+<Info>
 Northbound builds games with a strong emphasis on **shared systems**, **clean architecture**, and **editor-first workflows**.
+</Info>
 
 Rather than solving the same problems differently in every project, we invest heavily in:
-- reusable core systems
-- strong internal tooling
-- clear conventions and guardrails
+
+<CardGroup cols={3}>
+  <Card title="Reusable systems" icon="recycle">
+    Core functionality that works across all projects
+  </Card>
+  <Card title="Strong tooling" icon="wrench">
+    Editor tools that speed up iteration
+  </Card>
+  <Card title="Clear conventions" icon="ruler">
+    Guardrails that keep code consistent
+  </Card>
+</CardGroup>
 
 This allows individual games to stay focused on **gameplay and content**, not infrastructure.
 
@@ -20,84 +31,104 @@ This allows individual games to stay focused on **gameplay and content**, not in
 ## CoreLib at the centre
 
 At the heart of our projects is **CoreLib** — a shared library that provides:
-- foundational runtime systems (input, interactions, state, data)
-- robust editor tooling built on top of s&box conventions
-- opinionated patterns that reduce accidental complexity
 
-CoreLib is **not** meant to be a general-purpose framework or engine replacement.  
-It exists to solve *our* recurring problems in a consistent, maintainable way.
+<Tabs>
+  <Tab title="Runtime Systems">
+    - **Enhanced Input** — Contextual, rebindable input handling
+    - **Interactions** — Discoverable player-world interactions
+    - **State & Events** — Shared state management and event dispatching
+    - **Definitions** — Type-safe data authoring with stable IDs
+  </Tab>
+  <Tab title="Editor Tooling">
+    - **Workbench** — Framework for building editor applications
+    - **Input Editor** — Visual input configuration
+    - **Interaction Editor** — Author and test interactions
+    - **Debug Tools** — Runtime inspection and diagnostics
+  </Tab>
+  <Tab title="Patterns">
+    - Server-authoritative architecture
+    - Data vs behaviour separation
+    - Validation-first authoring
+    - Composition over inheritance
+  </Tab>
+</Tabs>
+
+<Note>
+CoreLib is **not** a general-purpose framework. It exists to solve *our* recurring problems in a consistent, maintainable way.
+</Note>
+
+### How games use CoreLib
+
+```mermaid
+graph TD
+    A[Game Project] --> B[CoreLib]
+    A --> C[Third-party Libraries]
+    B --> D[Runtime Systems]
+    B --> E[Editor Tooling]
+    B --> F[Shared Patterns]
+```
 
 Games are expected to:
-- depend on CoreLib
-- extend it where appropriate
-- avoid modifying it directly unless improving it for all projects
+- **Depend** on CoreLib
+- **Extend** it where appropriate
+- **Avoid modifying** it directly unless improving it for all projects
 
 ---
 
 ## Our design philosophy
 
-A few high-level ideas inform most technical decisions at Northbound:
+<AccordionGroup>
+  <Accordion title="Editor-first" icon="window">
+    If a system benefits from authoring or inspection, it should have proper editor tooling. We don't tolerate "edit the JSON manually" workflows.
+  </Accordion>
 
-- **Editor-first**  
-  If a system benefits from authoring or inspection, it should have proper editor tooling.
+  <Accordion title="Clean APIs over convenience" icon="broom">
+    We do more work inside the library to keep external usage simple and explicit. Complex internals are acceptable if they enable clean consumption.
+  </Accordion>
 
-- **Clean APIs over convenience**  
-  We are happy to do more work inside the library to keep usage simple and explicit.
+  <Accordion title="Data vs behaviour" icon="split">
+    Data is authored and validated in the editor. Behaviour lives in code. Mixing the two creates systems that are hard to understand and maintain.
+  </Accordion>
 
-- **Data vs behaviour**  
-  Data is authored and validated; behaviour lives in code. Mixing the two is avoided where possible.
+  <Accordion title="Server-authoritative by default" icon="server">
+    Gameplay-affecting systems treat the server as the source of truth. Clients handle prediction and presentation.
+  </Accordion>
 
-- **Server-authoritative by default**  
-  Especially for gameplay-affecting systems.
+  <Accordion title="Build on s&box, don't fight it" icon="handshake">
+    CoreLib extends and standardises s&box patterns rather than replacing them. We work with the platform, not against it.
+  </Accordion>
+</AccordionGroup>
 
-- **Build on s&box, don’t fight it**  
-  CoreLib extends and standardises s&box patterns rather than replacing them.
-
-These principles are expanded on in the **Handbook**.
+These principles are expanded in the [Handbook](/handbook/pillars).
 
 ---
 
 ## How projects are structured
 
-Most Northbound projects follow the same high-level shape:
+| Layer | Responsibility | Examples |
+|-------|---------------|----------|
+| **CoreLib** | Shared systems, editor tooling, architectural conventions | Input, Interactions, Workbench |
+| **Third-party** | External libraries that complement CoreLib | GameEvents, utilities |
+| **Game code** | Game-specific logic, content, rules, presentation | Weapons, AI, UI |
+| **Editor extensions** | Game-specific tooling built on Workbench | Custom inspectors |
 
-- **CoreLib**  
-  Shared systems and editor tooling.
-
-- **Third-party libraries**  
-  Existing libraries that compliment CoreLib, occasionally modified.
-
-- **Game code**  
-  Thin, game-specific logic:
-  - content
-  - composition
-  - rules
-  - presentation
-
-- **Editor extensions**  
-  Where needed, built on top of CoreLib’s Workbench and tooling patterns.
-
-This separation helps keep projects scalable and makes it easier to move improvements “up” into shared code.
-
----
-
-## How to use this wiki
-
-Use this wiki as a **source of truth** for:
-- how CoreLib systems are intended to be used
-- which patterns are encouraged or discouraged
-- how we integrate third-party libraries
-- why certain architectural decisions were made
-
-If something feels unclear, inconsistent, or undocumented — that’s a signal the wiki should be updated.
+This separation keeps projects scalable and makes it easier to move improvements "up" into shared code.
 
 ---
 
 ## Next steps
 
-If you’re getting started:
-- Read the **Engineering Pillars** in the Handbook
-- Skim the **CoreLib Architecture** page
-- Dive into the specific CoreLib systems relevant to your work
-
-This should give you enough context to work confidently within Northbound’s codebases.
+<CardGroup cols={2}>
+  <Card title="Engineering Pillars" icon="compass" href="/handbook/pillars">
+    Understand the values that guide our technical decisions
+  </Card>
+  <Card title="CoreLib Architecture" icon="diagram-project" href="/corelib/architecture">
+    Learn how CoreLib is structured and why
+  </Card>
+  <Card title="How We Work" icon="people-arrows" href="/home/how-we-work">
+    Day-to-day engineering practices at Northbound
+  </Card>
+  <Card title="Projects" icon="folder-open" href="/home/projects">
+    Overview of games and shared libraries
+  </Card>
+</CardGroup>

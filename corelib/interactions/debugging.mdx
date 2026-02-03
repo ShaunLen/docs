@@ -1,0 +1,392 @@
+---
+title: "Interaction Debugging"
+icon: "bug"
+description: "Troubleshooting and debugging interaction issues"
+---
+
+<Info>
+This page covers tools and techniques for debugging interaction problems.
+</Info>
+
+---
+
+## Debug visualisation
+
+Enable visual debugging for interactions:
+
+```csharp
+// Enable debug overlay
+InteractionSystem.DebugDraw = true;
+
+// Or via console
+// interaction_debug 1
+```
+
+### What the overlay shows
+
+<CardGroup cols={2}>
+  <Card title="Scan area" icon="circle">
+    The discovery radius/cone
+  </Card>
+  <Card title="Candidates" icon="cubes">
+    All discovered interactables
+  </Card>
+  <Card title="Selected" icon="check">
+    Current best interaction
+  </Card>
+  <Card title="Invalid" icon="xmark">
+    Filtered-out interactions with reasons
+  </Card>
+</CardGroup>
+
+---
+
+## Common issues
+
+<AccordionGroup>
+  <Accordion title="Interaction not appearing" icon="eye-slash">
+    **Symptoms:** No prompt shown for interactable object
+
+    **Checklist:**
+    1. Does the object have `IInteractable`?
+    2. Is it on a scanned layer?
+    3. Is it within range?
+    4. Does `CanInteract` return true?
+    5. Is there line of sight?
+
+    **Debug:**
+    ```csharp
+    // Force check a specific object
+    var result = InteractionSystem.DebugCheckInteractable(targetObject);
+    Log.Info(result.ToString());
+    ```
+  </Accordion>
+
+  <Accordion title="Wrong interaction selected" icon="shuffle">
+    **Symptoms:** Different interaction shown than expected
+
+    **Causes:**
+    - Priority values incorrect
+    - Distance tie-breaking
+    - Stickiness to previous target
+
+    **Debug:**
+    ```csharp
+    // Log all candidates with scores
+    foreach (var candidate in InteractionSystem.GetDebugCandidates())
+    {
+        Log.Info($"{candidate.Name}: " +
+                 $"Priority={candidate.Priority}, " +
+                 $"Distance={candidate.Distance:F2}, " +
+                 $"Score={candidate.FinalScore:F2}");
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="CanInteract always false" icon="ban">
+    **Symptoms:** Object found but marked invalid
+
+    **Debug:**
+    ```csharp
+    // Add logging to CanInteract
+    public bool CanInteract(Player player)
+    {
+        if (!player.IsAlive)
+        {
+            Log.Debug("CanInteract: Player not alive");
+            return false;
+        }
+
+        if (_isLocked)
+        {
+            Log.Debug("CanInteract: Object is locked");
+            return false;
+        }
+
+        return true;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Hold interaction not completing" icon="hourglass">
+    **Symptoms:** Progress resets or never finishes
+
+    **Causes:**
+    - Input released early
+    - Range exceeded during hold
+    - CanInteract becoming false
+    - Network desync
+
+    **Debug:**
+    ```csharp
+    InteractionSystem.OnHoldProgress += (ctx, progress) =>
+    {
+        Log.Debug($"Hold progress: {progress:P0}");
+    };
+
+    InteractionSystem.OnHoldCancelled += (ctx, reason) =>
+    {
+        Log.Debug($"Hold cancelled: {reason}");
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="Server rejects interaction" icon="server">
+    **Symptoms:** Client shows valid, server fails
+
+    **Causes:**
+    - State desync
+    - Lag/timing issues
+    - Server-only validation
+
+    **Debug:**
+    ```csharp
+    // Server-side logging
+    [ServerRpc]
+    private void RequestInteraction(int targetId)
+    {
+        var target = Scene.GetObjectById(targetId);
+        Log.Info($"[Server] Interaction request for {target?.Name}");
+
+        var canInteract = target.CanInteract(player);
+        Log.Info($"[Server] CanInteract: {canInteract}");
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Debug commands
+
+| Command | Description |
+|---------|-------------|
+| `interaction_debug 1` | Enable visual debug |
+| `interaction_log verbose` | Detailed logging |
+| `interaction_list` | List all interactables |
+| `interaction_check <id>` | Check specific object |
+| `interaction_force <id>` | Force interact with object |
+
+---
+
+## Runtime inspection
+
+### Interaction provider state
+
+```csharp
+public class InteractionDebugPanel : Panel
+{
+    protected override void OnUpdate()
+    {
+        var provider = Local.Pawn?.Components.Get<InteractionProvider>();
+        if (provider == null)
+            return;
+
+        Clear();
+
+        AddLine($"Scan mode: {provider.Config.Mode}");
+        AddLine($"Scan radius: {provider.Config.ScanRadius}");
+        AddLine($"Candidates: {provider.CandidateCount}");
+        AddLine($"Current: {provider.CurrentInteraction?.Target.Name ?? "None"}");
+
+        AddHeader("Candidates:");
+        foreach (var candidate in provider.GetAllCandidates())
+        {
+            var color = candidate.IsValid ? Color.Green : Color.Red;
+            AddLine($"  {candidate.Name} - {candidate.Score:F2}", color);
+        }
+    }
+}
+```
+
+### Interactable state
+
+```csharp
+[ConCmd.Server("debug_interactable")]
+public static void DebugInteractable()
+{
+    var player = ConsoleSystem.Caller.Pawn as Player;
+    var trace = Scene.Trace.Ray(player.EyePosition, player.EyeRotation.Forward * 10f);
+    var hit = trace.Run();
+
+    if (!hit.Hit)
+    {
+        Log.Info("No hit");
+        return;
+    }
+
+    var interactable = hit.GameObject.Components.Get<IInteractable>();
+    if (interactable == null)
+    {
+        Log.Info($"Hit {hit.GameObject.Name} - not interactable");
+        return;
+    }
+
+    Log.Info($"Interactable: {hit.GameObject.Name}");
+    Log.Info($"  Definition: {interactable.Interaction?.Id}");
+    Log.Info($"  CanInteract: {interactable.CanInteract(player)}");
+
+    if (interactable is IMultiInteractable multi)
+    {
+        Log.Info($"  Available interactions:");
+        foreach (var interaction in multi.GetInteractions(player))
+        {
+            Log.Info($"    - {interaction.Id}");
+        }
+    }
+}
+```
+
+---
+
+## Testing interactions
+
+### Unit testing
+
+```csharp
+[TestClass]
+public class InteractionTests
+{
+    [TestMethod]
+    public void Door_WhenUnlocked_CanInteract()
+    {
+        // Arrange
+        var door = new Door { IsLocked = false };
+        var player = new MockPlayer { IsAlive = true };
+
+        // Act
+        var canInteract = door.CanInteract(player);
+
+        // Assert
+        Assert.IsTrue(canInteract);
+    }
+
+    [TestMethod]
+    public void Door_WhenLocked_RequiresKey()
+    {
+        // Arrange
+        var door = new Door { IsLocked = true, KeyId = "key_1" };
+        var playerWithoutKey = new MockPlayer { IsAlive = true };
+        var playerWithKey = new MockPlayer { IsAlive = true };
+        playerWithKey.Inventory.Add("key_1");
+
+        // Act & Assert
+        Assert.IsFalse(door.CanInteract(playerWithoutKey));
+        Assert.IsTrue(door.CanInteract(playerWithKey));
+    }
+}
+```
+
+### Integration testing
+
+```csharp
+[TestMethod]
+public void InteractionProvider_FindsNearbyInteractables()
+{
+    // Arrange
+    var scene = new TestScene();
+    var player = scene.SpawnPlayer(Vector3.Zero);
+    var interactable = scene.SpawnInteractable(new Vector3(1, 0, 0));
+
+    var provider = player.Components.Get<InteractionProvider>();
+
+    // Act
+    provider.Scan();
+
+    // Assert
+    Assert.IsNotNull(provider.CurrentInteraction);
+    Assert.AreEqual(interactable, provider.CurrentInteraction.Target);
+}
+```
+
+---
+
+## Performance debugging
+
+```csharp
+// Get interaction system metrics
+var metrics = InteractionSystem.GetMetrics();
+
+Log.Info($"Scan time: {metrics.ScanTimeMs:F2}ms");
+Log.Info($"Objects scanned: {metrics.ObjectsScanned}");
+Log.Info($"Candidates found: {metrics.CandidatesFound}");
+Log.Info($"Validations run: {metrics.ValidationsRun}");
+```
+
+### Profiling tips
+
+<CardGroup cols={2}>
+  <Card title="Reduce scan frequency" icon="clock">
+    Increase `ScanInterval` if interactions feel responsive
+  </Card>
+  <Card title="Limit candidates" icon="filter">
+    Lower `MaxCandidates` for complex scenes
+  </Card>
+  <Card title="Optimize CanInteract" icon="bolt">
+    Keep validation checks fast
+  </Card>
+  <Card title="Use layers" icon="layer-group">
+    Configure `ScanLayers` to exclude unnecessary objects
+  </Card>
+</CardGroup>
+
+---
+
+## Troubleshooting checklist
+
+<Steps>
+  <Step title="Verify setup">
+    ```csharp
+    // Check component exists
+    var interactable = obj.Components.Get<IInteractable>();
+    Assert.IsNotNull(interactable, "Missing IInteractable");
+    ```
+  </Step>
+
+  <Step title="Check discovery">
+    ```csharp
+    // Verify object is discoverable
+    InteractionSystem.DebugDraw = true;
+    // Look for object in visualisation
+    ```
+  </Step>
+
+  <Step title="Check validation">
+    ```csharp
+    // Test CanInteract directly
+    var result = interactable.CanInteract(player);
+    Log.Info($"CanInteract: {result}");
+    ```
+  </Step>
+
+  <Step title="Check execution">
+    ```csharp
+    // Add logging to OnInteract
+    public void OnInteract(Player player)
+    {
+        Log.Info("OnInteract called");
+        // ...
+    }
+    ```
+  </Step>
+
+  <Step title="Check network">
+    ```csharp
+    // Verify server receives request
+    // Check for validation differences
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Authoring" icon="pen" href="/corelib/interactions/authoring">
+    Creating interactables correctly
+  </Card>
+  <Card title="Debug Tools" icon="wrench" href="/editor/extending/debug-tools">
+    Building custom debug tools
+  </Card>
+</CardGroup>

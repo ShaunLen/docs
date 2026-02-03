@@ -1,0 +1,311 @@
+---
+title: "Creating a Workbench App"
+icon: "plus"
+description: "Build your own editor using the Workbench framework"
+---
+
+<Info>
+This guide walks through creating a custom editor application using Workbench.
+</Info>
+
+---
+
+## Basic structure
+
+```csharp
+public class MyEditor : WorkbenchApp
+{
+    public override string Title => "My Editor";
+    public override string Icon => "cube";
+
+    protected override void OnLoad()
+    {
+        // Initialize data
+    }
+
+    protected override void BuildUI()
+    {
+        // Create UI
+    }
+
+    protected override void OnSave()
+    {
+        // Save data
+    }
+}
+```
+
+---
+
+## Step-by-step guide
+
+<Steps>
+  <Step title="Create the app class">
+    ```csharp
+    public class WeaponEditor : WorkbenchApp
+    {
+        public override string Title => "Weapon Editor";
+        public override string Icon => "gun";
+        public override string Category => "Game Tools";
+    }
+    ```
+  </Step>
+
+  <Step title="Set up working copy">
+    ```csharp
+    private WorkingCopy<WeaponDefinition> _weapons;
+
+    protected override void OnLoad()
+    {
+        _weapons = new WorkingCopy<WeaponDefinition>(
+            Definitions.GetAll<WeaponDefinition>()
+        );
+    }
+    ```
+  </Step>
+
+  <Step title="Build the UI">
+    ```csharp
+    protected override void BuildUI()
+    {
+        // Left: Hierarchy
+        var hierarchy = AddDock<HierarchyDock>(
+            "Weapons",
+            DockPosition.Left
+        );
+        hierarchy.Bind(_weapons.Items);
+        hierarchy.OnSelectionChanged += OnWeaponSelected;
+
+        // Right: Inspector
+        var inspector = AddDock<InspectorDock>(
+            "Properties",
+            DockPosition.Right
+        );
+        inspector.Bind(() => _weapons.Selected);
+
+        // Bottom: Preview
+        AddDock<PreviewDock>("Preview", DockPosition.Bottom);
+    }
+    ```
+  </Step>
+
+  <Step title="Handle selection">
+    ```csharp
+    private void OnWeaponSelected(WeaponDefinition weapon)
+    {
+        _weapons.Selected = weapon;
+    }
+    ```
+  </Step>
+
+  <Step title="Implement save">
+    ```csharp
+    protected override bool OnCanSave()
+    {
+        return _weapons.IsDirty && !_weapons.HasErrors;
+    }
+
+    protected override void OnSave()
+    {
+        _weapons.Save();
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Complete example
+
+```csharp
+public class WeaponEditor : WorkbenchApp
+{
+    public override string Title => "Weapon Editor";
+    public override string Icon => "gun";
+
+    private WorkingCopy<WeaponDefinition> _weapons;
+    private HierarchyDock _hierarchy;
+    private InspectorDock _inspector;
+
+    protected override void OnLoad()
+    {
+        _weapons = new WorkingCopy<WeaponDefinition>(
+            Definitions.GetAll<WeaponDefinition>()
+        );
+
+        // Register validators
+        Validation.Register<WeaponDefinition>(new WeaponValidator());
+    }
+
+    protected override void BuildUI()
+    {
+        // Toolbar
+        var toolbar = AddToolbar();
+        toolbar.AddButton("New", Icons.Plus, CreateWeapon);
+        toolbar.AddButton("Delete", Icons.Trash, DeleteWeapon);
+        toolbar.AddSeparator();
+        toolbar.AddButton("Save", Icons.Save, Save);
+
+        // Hierarchy
+        _hierarchy = AddDock<HierarchyDock>("Weapons", DockPosition.Left);
+        _hierarchy.Bind(_weapons.Items);
+        _hierarchy.OnSelectionChanged += OnSelectionChanged;
+        _hierarchy.AllowReorder = true;
+        _hierarchy.AllowRename = true;
+
+        // Inspector
+        _inspector = AddDock<InspectorDock>("Properties", DockPosition.Right);
+        _inspector.Bind(() => _weapons.Selected);
+
+        // Preview
+        var preview = AddDock<PreviewDock>("Preview", DockPosition.Bottom);
+        preview.Bind(() => _weapons.Selected?.ModelPath);
+
+        // Validation
+        AddDock<ValidationDock>("Issues", DockPosition.Bottom);
+    }
+
+    private void CreateWeapon()
+    {
+        var weapon = new WeaponDefinition
+        {
+            Id = GenerateUniqueId("weapon_"),
+            DisplayName = "New Weapon"
+        };
+
+        _weapons.Add(weapon);
+        _hierarchy.Select(weapon);
+    }
+
+    private void DeleteWeapon()
+    {
+        if (_weapons.Selected == null)
+            return;
+
+        if (ShowConfirmDialog($"Delete {_weapons.Selected.DisplayName}?"))
+        {
+            _weapons.Remove(_weapons.Selected);
+        }
+    }
+
+    private void OnSelectionChanged(object item)
+    {
+        _weapons.Selected = item as WeaponDefinition;
+    }
+
+    protected override bool OnCanSave()
+    {
+        return _weapons.IsDirty && !Validation.HasErrors;
+    }
+
+    protected override void OnSave()
+    {
+        _weapons.Save();
+        ShowNotification("Saved successfully");
+    }
+
+    protected override void OnClose()
+    {
+        if (_weapons.IsDirty)
+        {
+            var result = ShowDialog(
+                "You have unsaved changes. Save before closing?",
+                DialogButtons.YesNoCancel
+            );
+
+            switch (result)
+            {
+                case DialogResult.Yes:
+                    OnSave();
+                    break;
+                case DialogResult.Cancel:
+                    return; // Don't close
+            }
+        }
+
+        base.OnClose();
+    }
+}
+```
+
+---
+
+## Registering the app
+
+```csharp
+[EditorApp]
+public class WeaponEditor : WorkbenchApp
+{
+    // Automatically registered with editor
+}
+
+// Or manually
+EditorMenu.Register<WeaponEditor>("Tools/Game/Weapon Editor");
+```
+
+---
+
+## Adding keyboard shortcuts
+
+```csharp
+protected override void OnKeyDown(KeyEvent e)
+{
+    if (e.Ctrl)
+    {
+        switch (e.Key)
+        {
+            case Key.S:
+                if (OnCanSave()) OnSave();
+                e.Handled = true;
+                break;
+
+            case Key.N:
+                CreateWeapon();
+                e.Handled = true;
+                break;
+
+            case Key.Z:
+                if (e.Shift)
+                    _weapons.History.Redo();
+                else
+                    _weapons.History.Undo();
+                e.Handled = true;
+                break;
+        }
+    }
+
+    base.OnKeyDown(e);
+}
+```
+
+---
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Use working copies" icon="copy">
+    Never edit original data directly
+  </Card>
+  <Card title="Validate early" icon="shield">
+    Show errors as users type
+  </Card>
+  <Card title="Confirm destructive actions" icon="triangle-exclamation">
+    Prompt before delete/discard
+  </Card>
+  <Card title="Support undo" icon="rotate-left">
+    Let users experiment safely
+  </Card>
+</CardGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Custom Docks" icon="table-columns" href="/editor/extending/custom-docks">
+    Creating custom panels
+  </Card>
+  <Card title="Validation Rules" icon="shield" href="/editor/extending/validation-rules">
+    Adding custom validation
+  </Card>
+</CardGroup>

@@ -1,0 +1,334 @@
+---
+title: "Shared State"
+icon: "database"
+description: "Managing centralized, observable state"
+---
+
+<Info>
+Shared State provides centralized containers for game data that multiple systems can access and observe.
+</Info>
+
+---
+
+## Creating state containers
+
+### Basic state class
+
+```csharp
+public class MatchState : SharedState
+{
+    public MatchPhase Phase { get; set; }
+    public float TimeRemaining { get; set; }
+    public int RoundNumber { get; set; }
+    public Team WinningTeam { get; set; }
+}
+```
+
+### Observable properties
+
+```csharp
+public class PlayerState : SharedState
+{
+    private int _health;
+
+    public int Health
+    {
+        get => _health;
+        set
+        {
+            if (_health == value) return;
+
+            var oldValue = _health;
+            _health = value;
+
+            // Notify observers
+            OnPropertyChanged(nameof(Health), oldValue, value);
+        }
+    }
+}
+```
+
+---
+
+## Accessing state
+
+### Getting state instances
+
+```csharp
+// Get global state
+var matchState = State.Get<MatchState>();
+
+// Get player-specific state
+var playerState = State.Get<PlayerState>(player);
+
+// Get or create
+var state = State.GetOrCreate<CustomState>(key);
+```
+
+### Reading state
+
+```csharp
+// Direct access
+var phase = matchState.Phase;
+var health = playerState.Health;
+
+// Safe access
+if (State.TryGet<MatchState>(out var match))
+{
+    Log.Info($"Round: {match.RoundNumber}");
+}
+```
+
+---
+
+## Observing state changes
+
+### Property observers
+
+```csharp
+public class HealthBar : Panel
+{
+    private PlayerState _state;
+
+    protected override void OnStart()
+    {
+        _state = State.Get<PlayerState>(Local.Pawn);
+
+        // Subscribe to property changes
+        _state.PropertyChanged += OnPropertyChanged;
+    }
+
+    private void OnPropertyChanged(string property, object oldVal, object newVal)
+    {
+        if (property == nameof(PlayerState.Health))
+        {
+            UpdateHealthBar((int)newVal);
+        }
+    }
+
+    protected override void OnDestroy()
+    {
+        _state.PropertyChanged -= OnPropertyChanged;
+    }
+}
+```
+
+### Using observers
+
+```csharp
+// Create a scoped observer
+using (var observer = State.Observe<MatchState>())
+{
+    observer.OnChanged(nameof(MatchState.Phase), OnPhaseChanged);
+    observer.OnChanged(nameof(MatchState.TimeRemaining), OnTimeChanged);
+
+    // Observer auto-unsubscribes when disposed
+}
+```
+
+---
+
+## State ownership
+
+### Server-authoritative state
+
+<Warning>
+Game-affecting state should be owned by the server.
+</Warning>
+
+```csharp
+public class MatchState : SharedState
+{
+    public override StateAuthority Authority => StateAuthority.Server;
+
+    // Only server can modify
+    [ServerOnly]
+    public void SetPhase(MatchPhase phase)
+    {
+        Phase = phase;
+        BroadcastChange(); // Sync to clients
+    }
+}
+```
+
+### Client-local state
+
+```csharp
+public class UIState : SharedState
+{
+    public override StateAuthority Authority => StateAuthority.Client;
+
+    // Each client has their own
+    public bool InventoryOpen { get; set; }
+    public int SelectedSlot { get; set; }
+}
+```
+
+---
+
+## Collections in state
+
+### Observable collections
+
+```csharp
+public class InventoryState : SharedState
+{
+    public ObservableList<Item> Items { get; } = new();
+}
+
+// Usage
+inventory.Items.Added += OnItemAdded;
+inventory.Items.Removed += OnItemRemoved;
+inventory.Items.Changed += OnCollectionChanged;
+
+// Modifications fire events
+inventory.Items.Add(newItem);
+inventory.Items.Remove(oldItem);
+inventory.Items.Clear();
+```
+
+### Dictionary state
+
+```csharp
+public class TeamScoreState : SharedState
+{
+    public ObservableDictionary<Team, int> Scores { get; } = new();
+}
+
+// Subscribe
+scores.Scores.KeyChanged += (team, oldScore, newScore) =>
+{
+    Log.Info($"{team} score: {oldScore} -> {newScore}");
+};
+```
+
+---
+
+## State serialization
+
+### Network sync
+
+```csharp
+public class MatchState : SharedState, INetworkSerializable
+{
+    public void Write(NetWrite write)
+    {
+        write.Write((int)Phase);
+        write.Write(TimeRemaining);
+        write.Write(RoundNumber);
+    }
+
+    public void Read(NetRead read)
+    {
+        Phase = (MatchPhase)read.ReadInt();
+        TimeRemaining = read.ReadFloat();
+        RoundNumber = read.ReadInt();
+
+        // Notify observers of bulk update
+        OnStateReplaced();
+    }
+}
+```
+
+### Persistence
+
+```csharp
+// Save state
+var json = State.Get<SettingsState>().ToJson();
+FileSystem.Data.WriteAllText("settings.json", json);
+
+// Load state
+var json = FileSystem.Data.ReadAllText("settings.json");
+State.Get<SettingsState>().FromJson(json);
+```
+
+---
+
+## Computed state
+
+Derived values that update automatically:
+
+```csharp
+public class PlayerState : SharedState
+{
+    public int BaseHealth { get; set; }
+    public int HealthBonus { get; set; }
+
+    // Computed property
+    public int MaxHealth => BaseHealth + HealthBonus;
+
+    public int CurrentHealth { get; set; }
+
+    // Computed percentage
+    public float HealthPercent => (float)CurrentHealth / MaxHealth;
+}
+```
+
+### Reactive computed values
+
+```csharp
+var computed = State.Computed(() =>
+{
+    var match = State.Get<MatchState>();
+    var player = State.Get<PlayerState>(Local.Pawn);
+
+    return new
+    {
+        CanRespawn = match.Phase == MatchPhase.Active && player.RespawnsRemaining > 0
+    };
+});
+
+computed.Changed += (value) =>
+{
+    _respawnButton.Enabled = value.CanRespawn;
+};
+```
+
+---
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Keep state minimal" icon="compress">
+    Only store what's needed. Derive what you can.
+  </Card>
+  <Card title="Use appropriate authority" icon="server">
+    Server-authoritative for gameplay, client for UI.
+  </Card>
+  <Card title="Unsubscribe properly" icon="link-slash">
+    Always clean up observers to prevent leaks.
+  </Card>
+  <Card title="Batch updates" icon="layer-group">
+    Use transactions for multiple related changes.
+  </Card>
+</CardGroup>
+
+### Batching updates
+
+```csharp
+// Without batching: fires 3 events
+state.Health = 100;
+state.MaxHealth = 100;
+state.Armor = 50;
+
+// With batching: fires 1 event
+using (state.BeginUpdate())
+{
+    state.Health = 100;
+    state.MaxHealth = 100;
+    state.Armor = 50;
+}
+```
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="bolt" href="/corelib/state/events">
+    Event dispatching for state changes
+  </Card>
+  <Card title="Patterns" icon="shapes" href="/corelib/state/patterns">
+    Recommended state patterns
+  </Card>
+</CardGroup>

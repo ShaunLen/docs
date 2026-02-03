@@ -1,0 +1,301 @@
+---
+title: "Commits and PRs"
+icon: "code-commit"
+description: "Conventions for commits, pull requests, and code review at Northbound"
+---
+
+<Info>
+Good commits and PRs make collaboration easier and create a useful project history. This page covers our conventions.
+</Info>
+
+---
+
+## Commit messages
+
+### Format
+
+```
+<type>: <short description>
+
+<optional longer description>
+
+<optional footer>
+```
+
+### Types
+
+| Type | Use for |
+|------|---------|
+| `feat` | New features |
+| `fix` | Bug fixes |
+| `refactor` | Code changes that don't change behaviour |
+| `docs` | Documentation only |
+| `style` | Formatting, whitespace (no code change) |
+| `test` | Adding or updating tests |
+| `chore` | Build, tooling, dependencies |
+
+### Examples
+
+<Tabs>
+  <Tab title="Simple">
+    ```
+    feat: add input rebinding UI
+    ```
+
+    ```
+    fix: correct interaction range calculation
+    ```
+
+    ```
+    refactor: extract validation into separate class
+    ```
+  </Tab>
+  <Tab title="With description">
+    ```
+    feat: add input rebinding UI
+
+    Allows players to rebind controls through the settings menu.
+    Bindings are persisted to local storage.
+    ```
+  </Tab>
+  <Tab title="Breaking change">
+    ```
+    refactor: rename InputContext to InputScope
+
+    BREAKING CHANGE: All references to InputContext must be
+    updated to InputScope. The API behaviour is unchanged.
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Commit best practices
+
+<CardGroup cols={2}>
+  <Card title="Atomic commits" icon="atom">
+    One logical change per commit. If you can split it, you probably should.
+  </Card>
+  <Card title="Working state" icon="check">
+    Each commit should leave the project in a working state.
+  </Card>
+  <Card title="Clear intent" icon="comment">
+    The message should explain *what* and *why*, not *how*.
+  </Card>
+  <Card title="Present tense" icon="clock">
+    "Add feature" not "Added feature" — describes what the commit does.
+  </Card>
+</CardGroup>
+
+<Warning>
+**Never skip pre-commit hooks.** If a hook fails, fix the issue rather than bypassing with `--no-verify`.
+</Warning>
+
+---
+
+## Pull requests
+
+### PR title
+
+Follow the same format as commit messages:
+
+```
+feat: add enhanced input rebinding
+fix: resolve memory leak in interaction system
+refactor: simplify state machine transitions
+```
+
+### PR description template
+
+```markdown
+## Summary
+Brief description of what this PR does and why.
+
+## Changes
+- List of specific changes
+- Another change
+- And another
+
+## Testing
+How this was tested, or how reviewers can test it.
+
+## Related
+- Closes #123 (if applicable)
+- Related to #456
+```
+
+---
+
+## PR guidelines
+
+<Steps>
+  <Step title="Keep PRs focused">
+    One feature, one fix, or one refactor per PR. Mixed changes are hard to review.
+  </Step>
+  <Step title="Write a clear description">
+    Help reviewers understand the context and intent.
+  </Step>
+  <Step title="Self-review first">
+    Review your own changes before requesting review. Catch obvious issues.
+  </Step>
+  <Step title="Respond to feedback">
+    Address comments thoughtfully. Push fixes as new commits for easy re-review.
+  </Step>
+</Steps>
+
+### PR size guidance
+
+| Size | Lines changed | Review approach |
+|------|---------------|-----------------|
+| Small | < 100 | Quick review |
+| Medium | 100-300 | Thorough review |
+| Large | 300-500 | Consider splitting |
+| Too large | > 500 | Should be split |
+
+<Tip>
+Smaller PRs get reviewed faster and merged sooner.
+</Tip>
+
+---
+
+## Code review
+
+### As a reviewer
+
+<CardGroup cols={2}>
+  <Card title="Be constructive" icon="comments">
+    Focus on improvement, not criticism. Suggest alternatives.
+  </Card>
+  <Card title="Be specific" icon="bullseye">
+    Point to exact lines. Explain the issue clearly.
+  </Card>
+  <Card title="Ask questions" icon="circle-question">
+    If something is unclear, ask rather than assume.
+  </Card>
+  <Card title="Acknowledge good work" icon="thumbs-up">
+    Positive feedback is valuable too.
+  </Card>
+</CardGroup>
+
+### Comment prefixes
+
+| Prefix | Meaning |
+|--------|---------|
+| `nit:` | Minor suggestion, not blocking |
+| `suggestion:` | Consider this approach |
+| `question:` | Seeking clarification |
+| `issue:` | This needs to be addressed |
+| `blocking:` | Must be fixed before merge |
+
+### As an author
+
+<Steps>
+  <Step title="Don't take it personally">
+    Reviews are about the code, not you
+  </Step>
+  <Step title="Respond to all comments">
+    Either make the change or explain why not
+  </Step>
+  <Step title="Ask for clarification">
+    If feedback is unclear, ask
+  </Step>
+  <Step title="Thank your reviewers">
+    They're helping improve the code
+  </Step>
+</Steps>
+
+---
+
+## Merging
+
+### Before merging
+
+<CardGroup cols={2}>
+  <Card title="Checks pass" icon="circle-check" color="#16A34A">
+    All CI checks and tests must pass
+  </Card>
+  <Card title="Approved" icon="thumbs-up" color="#16A34A">
+    Required approvals received
+  </Card>
+  <Card title="Up to date" icon="rotate" color="#16A34A">
+    Branch is current with main
+  </Card>
+  <Card title="Conflicts resolved" icon="code-merge" color="#16A34A">
+    No merge conflicts
+  </Card>
+</CardGroup>
+
+### Merge strategies
+
+<Tabs>
+  <Tab title="Squash (default)">
+    Combines all commits into one on main.
+
+    **Use when:**
+    - Multiple small "work in progress" commits
+    - Cleaning up messy commit history
+
+    **Result:**
+    - Clean main history
+    - PR details preserved in squash commit
+  </Tab>
+  <Tab title="Merge commit">
+    Creates a merge commit, preserves all commits.
+
+    **Use when:**
+    - Commits are already clean and meaningful
+    - Preserving individual commits matters
+
+    **Result:**
+    - Full history preserved
+    - Merge commit marks integration point
+  </Tab>
+</Tabs>
+
+---
+
+## After merging
+
+<Steps>
+  <Step title="Delete the branch">
+    Clean up the remote branch after merge
+  </Step>
+  <Step title="Update local">
+    Pull main and delete local branch
+
+    ```bash
+    git checkout main
+    git pull
+    git branch -d feature/my-feature
+    ```
+  </Step>
+  <Step title="Verify deployment">
+    If applicable, verify the changes deployed correctly
+  </Step>
+</Steps>
+
+---
+
+## Summary
+
+| Aspect | Convention |
+|--------|------------|
+| Commit format | `type: description` |
+| Commit size | One logical change |
+| PR size | < 300 lines preferred |
+| PR description | Summary, changes, testing |
+| Review tone | Constructive and specific |
+| Merge strategy | Squash by default |
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Branching Strategy" icon="code-branch" href="/handbook/branching-strategy">
+    How we use branches
+  </Card>
+  <Card title="Releases" icon="rocket" href="/handbook/releases">
+    How PRs become releases
+  </Card>
+</CardGroup>

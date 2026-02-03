@@ -6,11 +6,23 @@ description: "Games and shared projects developed at Northbound"
 
 ## Overview
 
+<Info>
 Northbound builds **games**, supported by a small number of **shared libraries**.
+</Info>
 
-Projects are expected to be long-lived and evolve over time. Shared infrastructure exists to reduce duplication, enforce consistency, and make it easier to move improvements between projects.
+Projects are expected to be long-lived and evolve over time. Shared infrastructure exists to:
 
-This page provides a high-level view of what exists today and how projects relate to each other.
+<CardGroup cols={3}>
+  <Card title="Reduce duplication" icon="copy">
+    Solve problems once, use everywhere
+  </Card>
+  <Card title="Enforce consistency" icon="check-double">
+    Same patterns across all projects
+  </Card>
+  <Card title="Enable improvement sharing" icon="share">
+    Enhancements benefit all games
+  </Card>
+</CardGroup>
 
 ---
 
@@ -18,18 +30,34 @@ This page provides a high-level view of what exists today and how projects relat
 
 ### CoreLib
 
-**CoreLib** is the primary shared library used across Northbound projects.
+<Card title="CoreLib" icon="cubes" href="/corelib/index">
+  The primary shared library used across all Northbound projects
+</Card>
 
-It provides:
+CoreLib provides:
 
-- foundational runtime systems (input, interactions, state, data)
-- editor tooling and authoring workflows
-- opinionated architectural patterns
+<Tabs>
+  <Tab title="Runtime">
+    - Input handling
+    - Interaction system
+    - State management
+    - Data definitions
+  </Tab>
+  <Tab title="Editor">
+    - Workbench framework
+    - Authoring tools
+    - Debug utilities
+  </Tab>
+  <Tab title="Patterns">
+    - Architectural conventions
+    - Validation workflows
+    - Server-authoritative patterns
+  </Tab>
+</Tabs>
 
-CoreLib is versioned and reused across projects rather than forked.\
-Improvements made for one game are expected to benefit others where possible.
-
-See the **CoreLib** section of this wiki for details.
+<Note>
+CoreLib is versioned and reused across projects rather than forked. Improvements made for one game benefit others.
+</Note>
 
 ---
 
@@ -37,78 +65,122 @@ See the **CoreLib** section of this wiki for details.
 
 Northbound games are built **on top of CoreLib**, not alongside it.
 
-Each game typically contains:
+### Game composition
 
-- game-specific logic and rules
-- content and tuning
-- composition of shared systems
-- presentation (UI, effects, audio)
+```mermaid
+graph TD
+    subgraph Game["Game Project"]
+        A[Game Logic & Rules]
+        B[Content & Tuning]
+        C[Composition]
+        D[Presentation]
+    end
+    subgraph Shared["Shared Layer"]
+        E[CoreLib]
+        F[Third-party Libraries]
+    end
+    A --> E
+    B --> E
+    C --> E
+    D --> E
+    E --> F
+```
 
-Games should avoid reimplementing:
+### What games contain
 
-- infrastructure
-- generic systems
-- editor tooling that already exists in CoreLib
+| Layer | Description |
+|-------|-------------|
+| **Game logic** | Rules, mechanics, AI |
+| **Content** | Assets, tuning data |
+| **Composition** | How shared systems are wired together |
+| **Presentation** | UI, effects, audio |
 
-If a game requires functionality that feels broadly useful, it’s usually a sign that CoreLib should be extended.
+### What games should avoid
 
-> This keeps individual projects focused and prevents long-term divergence.
+<Warning>
+Games should **not** reimplement:
+- Infrastructure
+- Generic systems
+- Editor tooling that exists in CoreLib
+
+If a game needs broadly useful functionality, that's a sign CoreLib should be extended.
+</Warning>
 
 ---
 
 ## Project boundaries
 
-As a general rule:
+<Tabs>
+  <Tab title="CoreLib owns">
+    - Reusable systems
+    - Editor tooling
+    - Architectural conventions
+    - Shared patterns
+  </Tab>
+  <Tab title="Games own">
+    - Gameplay rules
+    - Content decisions
+    - System composition
+    - Game-specific presentation
+  </Tab>
+</Tabs>
 
-- **CoreLib**
-  - owns reusable systems
-  - owns editor tooling
-  - sets architectural conventions
-- **Game projects**
-  - own gameplay rules and content
-  - decide how systems are composed
-  - do not own shared infrastructure
-
-Blurring these boundaries ~~is punishable by death~~ makes future reuse and maintenance harder.
+<Tip>
+Blurring these boundaries makes future reuse and maintenance harder. Keep them clear.
+</Tip>
 
 ---
 
 ## Adding a new project
 
-When starting a new game:
-
-- CoreLib should be treated as a required dependency with optional modules
-- project structure should follow existing conventions
-- any deviations should be intentional and documented
-
-Early investment in structure and tooling pays off quickly as projects grow.
+<Steps>
+  <Step title="Depend on CoreLib">
+    Treat CoreLib as a required dependency with optional modules
+  </Step>
+  <Step title="Follow conventions">
+    Project structure should match existing patterns
+  </Step>
+  <Step title="Document deviations">
+    Any intentional differences should be recorded
+  </Step>
+  <Step title="Invest early">
+    Structure and tooling investments pay off quickly as projects grow
+  </Step>
+</Steps>
 
 ---
 
 ## Evolving projects
 
-Projects are expected to change over time.
+Projects change over time. As requirements evolve:
 
-As requirements evolve:
+<AccordionGroup>
+  <Accordion title="Identify patterns" icon="magnifying-glass">
+    Watch for repeated solutions that could be shared
+  </Accordion>
+  <Accordion title="Improve, don't copy" icon="arrow-up">
+    Enhance shared systems rather than duplicating them
+  </Accordion>
+  <Accordion title="Update documentation" icon="pen">
+    Keep docs in sync with code changes
+  </Accordion>
+</AccordionGroup>
 
-- shared patterns should be identified
-- systems should be improved rather than copied
-- documentation should be updated alongside code
-
+<Note>
 The goal is not to freeze architecture, but to keep it **coherent** as it evolves.
+</Note>
 
 ---
 
-## Keeping this page up to date
+## Keeping this page current
 
+<Info>
 This page intentionally avoids deep detail.
+</Info>
 
 If you add:
+- A new shared library
+- A major new game project
+- A significant structural change
 
-- a new shared library
-- a major new game project
-- a significant change in how projects are structured
-
-…update this page to reflect that reality.
-
-It should always provide an accurate, high-level snapshot of Northbound’s ecosystem.
+...update this page to reflect that reality. It should always provide an accurate high-level snapshot of Northbound's ecosystem.

@@ -1,0 +1,273 @@
+---
+title: "Naming Conventions"
+icon: "tag"
+description: "Standard naming rules and patterns at Northbound"
+---
+
+<Info>
+Consistent naming makes code easier to read and navigate. This page documents our naming conventions.
+</Info>
+
+---
+
+## Quick reference
+
+| Element | Case | Example |
+|---------|------|---------|
+| Classes/Structs | PascalCase | `WeaponDefinition` |
+| Interfaces | IPascalCase | `IInteractable` |
+| Methods | PascalCase | `ApplyDamage` |
+| Properties | PascalCase | `MaxHealth` |
+| Local variables | camelCase | `currentHealth` |
+| Parameters | camelCase | `targetPlayer` |
+| Private fields | _camelCase | `_weaponDamage` |
+| Constants | PascalCase | `MaxPlayers` |
+| Namespaces | PascalCase | `CoreLib.Input` |
+| Files | PascalCase | `WeaponDefinition.cs` |
+
+---
+
+## Types
+
+### Classes
+
+```csharp
+// PascalCase, descriptive nouns
+public class WeaponDefinition { }
+public class InteractionProvider { }
+public class InputContextStack { }
+```
+
+### Interfaces
+
+```csharp
+// I prefix + PascalCase
+public interface IInteractable { }
+public interface IValidatable { }
+public interface IDamageable { }
+```
+
+### Enums
+
+```csharp
+// PascalCase for type and values
+public enum DamageType
+{
+    Physical,
+    Fire,
+    Electric
+}
+```
+
+### Generics
+
+```csharp
+// Single letter or descriptive
+public class WorkingCopy<T> { }
+public class Registry<TDefinition> where TDefinition : Definition { }
+```
+
+---
+
+## Members
+
+### Methods
+
+```csharp
+// PascalCase, verb phrases
+public void ApplyDamage(float amount) { }
+public bool TryGetPlayer(int id, out Player player) { }
+public void OnInteractionStarted() { }
+```
+
+#### Method prefixes
+
+| Prefix | Use |
+|--------|-----|
+| `Get` | Returns value, may throw |
+| `TryGet` | Returns bool, uses out parameter |
+| `Find` | Returns value or null |
+| `Create` | Returns new instance |
+| `On` | Event handler |
+| `Handle` | Processes something |
+| `Is/Has/Can` | Boolean check |
+
+### Properties
+
+```csharp
+// PascalCase, nouns or adjectives
+public float Health { get; set; }
+public bool IsAlive { get; }
+public int MaxMagazineSize { get; }
+```
+
+### Fields
+
+```csharp
+// Private: underscore prefix + camelCase
+private float _currentHealth;
+private List<Player> _activePlayers;
+
+// Public static readonly: PascalCase
+public static readonly int MaxPlayers = 32;
+```
+
+### Parameters and locals
+
+```csharp
+// camelCase
+public void DealDamage(Player targetPlayer, float damageAmount)
+{
+    var currentHealth = targetPlayer.Health;
+    var finalDamage = CalculateDamage(damageAmount);
+}
+```
+
+---
+
+## Definition IDs
+
+Stable IDs for definitions:
+
+```
+{category}_{name}
+```
+
+<CardGroup cols={2}>
+  <Card title="Format" icon="tag">
+    - Lowercase only
+    - Underscores for spaces
+    - Category prefix
+  </Card>
+  <Card title="Examples" icon="list">
+    - `weapon_pistol`
+    - `item_health_pack`
+    - `ability_fireball`
+  </Card>
+</CardGroup>
+
+---
+
+## Files and folders
+
+### Files
+
+```
+// Match type name
+WeaponDefinition.cs      // Contains WeaponDefinition
+InteractionProvider.cs   // Contains InteractionProvider
+IInteractable.cs         // Contains IInteractable
+```
+
+### Folders
+
+```
+// PascalCase, plural for collections
+CoreLib/
+├── Input/
+├── Interactions/
+├── State/
+├── Definitions/
+└── Editor/
+    ├── Tools/
+    └── Docks/
+```
+
+---
+
+## Namespaces
+
+```csharp
+// Match folder structure
+namespace CoreLib.Input { }
+namespace CoreLib.Interactions.Editor { }
+namespace Game.Weapons { }
+```
+
+---
+
+## Events
+
+```csharp
+// PascalCase, past tense for things that happened
+public struct PlayerKilledEvent { }
+public struct DamageDealtEvent { }
+public struct ItemPickedUpEvent { }
+
+// Present tense for requests/commands
+public struct DamageRequest { }
+public struct SpawnPlayerCommand { }
+```
+
+---
+
+## Booleans
+
+Name booleans to read naturally in conditions:
+
+```csharp
+// Good: reads naturally
+if (player.IsAlive) { }
+if (weapon.HasAmmo) { }
+if (door.CanOpen) { }
+
+// Bad: unclear or awkward
+if (player.Alive) { }      // Adjective alone
+if (weapon.Ammo) { }       // Noun as bool
+if (door.OpenFlag) { }     // "Flag" suffix
+```
+
+| Prefix | Use |
+|--------|-----|
+| `Is` | State (IsAlive, IsActive) |
+| `Has` | Possession (HasAmmo, HasKey) |
+| `Can` | Ability (CanJump, CanInteract) |
+| `Should` | Recommendations (ShouldRespawn) |
+
+---
+
+## Abbreviations
+
+<CardGroup cols={2}>
+  <Card title="Allowed" icon="check" color="#16A34A">
+    - `Id` (not ID)
+    - `Ui` (not UI)
+    - `Hp` (in game context)
+    - `Max`, `Min`
+  </Card>
+  <Card title="Avoid" icon="xmark" color="#EF4444">
+    - `Mgr` (use full word)
+    - `Ctrl` (use full word)
+    - `Btn` (use full word)
+    - Single letters (except generics)
+  </Card>
+</CardGroup>
+
+---
+
+## Anti-patterns
+
+<Warning>
+Avoid these naming patterns.
+</Warning>
+
+| Avoid | Problem | Better |
+|-------|---------|--------|
+| `Manager` | Too vague | `Registry`, `System`, `Provider` |
+| `Handler` | Too generic | `Processor`, specific verb |
+| `Data` | Meaningless | Describe what data |
+| `Info` | Vague | Describe what info |
+| `Utils` | Dump class | Specific purpose classes |
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Code Style" icon="code" href="/handbook/code-style">
+    Broader coding conventions
+  </Card>
+  <Card title="Terminology" icon="book" href="/reference/terminology">
+    What terms mean
+  </Card>
+</CardGroup>

@@ -4,18 +4,26 @@ icon: "home"
 description: "Internal engineering wiki for Northbound"
 ---
 
-## What is this wiki?
+<Info>
+This is the internal knowledge base for **Northbound** — a living document that grows alongside our projects.
+</Info>
 
-This is the internal knowledge base for **Northbound**.
+## What you'll find here
 
-Its purpose is to make it easy to:
-- Understand and use **CoreLib**, our shared game framework
-- Learn the **patterns and conventions** we use across projects
-- Document how we integrate and wrap **third-party libraries**
-- Capture engineering decisions so they don’t live only in people’s heads
-
-All of our shared systems are designed to be **robust and opinionated internally**, while exposing **clean, minimal APIs** to game code.  
-This wiki exists to explain *how* and *why* those systems work the way they do.
+<CardGroup cols={2}>
+  <Card title="Understand CoreLib" icon="cubes" color="#16A34A">
+    Our shared game framework with input, interactions, state management, and editor tooling.
+  </Card>
+  <Card title="Learn our patterns" icon="book" color="#16A34A">
+    Conventions, coding standards, and architectural decisions that guide how we build.
+  </Card>
+  <Card title="Integration guides" icon="plug" color="#16A34A">
+    How we wrap and use third-party libraries like Facepunch GameEvents.
+  </Card>
+  <Card title="Reference material" icon="list" color="#16A34A">
+    Terminology, naming conventions, and folder structure documentation.
+  </Card>
+</CardGroup>
 
 ---
 
@@ -23,89 +31,100 @@ This wiki exists to explain *how* and *why* those systems work the way they do.
 
 The navigation is split by **intent**, not by documentation type:
 
-<Columns cols={2}>
-  <Card title="Handbook" icon="book">
-    Engineering pillars, coding standards, architectural rules, and workflow.
-    Read this to understand how we build and maintain long-lived projects.
-  </Card>
+<AccordionGroup>
+  <Accordion title="Handbook" icon="book">
+    Engineering pillars, coding standards, architectural rules, and workflow practices.
 
-  <Card title="CoreLib" icon="cubes">
-    Documentation for CoreLib systems: Enhanced Input, interactions, state, definitions,
-    and editor tooling. This is the primary reference for gameplay and tooling code.
-  </Card>
+    **Read this to understand:**
+    - How we approach building long-lived projects
+    - Our coding standards and conventions
+    - Git workflow and release processes
+  </Accordion>
 
-  <Card title="Integrations" icon="plug">
-    How Northbound uses third-party libraries (e.g. Facepunch GameEvents),
-    including conventions, wrappers, and gotchas.
-  </Card>
+  <Accordion title="CoreLib" icon="cubes">
+    Documentation for all CoreLib systems: Enhanced Input, Interactions, State & Events, Definitions, and Editor Tooling.
 
-  <Card title="Reference" icon="list">
-    Terminology, naming conventions, folder structure, and (eventually) API reference.
-  </Card>
-</Columns>
+    **This is your primary reference for:**
+    - Gameplay system implementation
+    - Editor tooling development
+    - Data authoring workflows
+  </Accordion>
+
+  <Accordion title="Integrations" icon="plug">
+    How Northbound uses third-party libraries, including our wrappers, conventions, and gotchas.
+
+    **Covers:**
+    - Facepunch GameEvents integration
+    - Other commonly used libraries
+  </Accordion>
+
+  <Accordion title="Reference" icon="list">
+    Quick-reference material for terminology, naming conventions, and project structure.
+
+    **Use for:**
+    - Looking up standard terminology
+    - Checking naming conventions
+    - Understanding folder organisation
+  </Accordion>
+</AccordionGroup>
 
 ---
 
 ## Where to start
 
-If you’re new to a system or project, these are good entry points:
+<Steps>
+  <Step title="Read the Engineering Pillars">
+    Understand the high-level rules and principles that guide how we write code and build systems.
 
-<Columns cols={2}>
-  <Card
-    title="Engineering Pillars"
-    icon="compass"
-    href="/handbook/pillars"
-  >
-    The high-level rules and principles that guide how we write code and build systems.
-  </Card>
+    <Card title="Engineering Pillars" icon="compass" href="/handbook/pillars" horizontal />
+  </Step>
 
-  <Card
-    title="CoreLib Architecture"
-    icon="diagram-project"
-    href="/corelib/architecture"
-  >
-    How CoreLib is structured, including runtime vs editor code and core patterns.
-  </Card>
+  <Step title="Explore CoreLib Architecture">
+    Learn how CoreLib is structured, including runtime vs editor code and core patterns.
 
-  <Card
-    title="Enhanced Input"
-    icon="gamepad"
-    href="/corelib/input/overview"
-  >
-    Our input system, how it works, and how to use it in gameplay code.
-  </Card>
+    <Card title="CoreLib Architecture" icon="diagram-project" href="/corelib/architecture" horizontal />
+  </Step>
 
-  <Card
-    title="Editor Workbench"
-    icon="wrench"
-    href="/editor/workbench/overview"
-  >
-    The shared editor tooling framework that powers CoreLib editor apps.
-  </Card>
-</Columns>
+  <Step title="Dive into specific systems">
+    Pick the system most relevant to your current work and explore its documentation.
+
+    <CardGroup cols={2}>
+      <Card title="Enhanced Input" icon="gamepad" href="/corelib/input/overview" />
+      <Card title="Interactions" icon="hand-pointer" href="/corelib/interactions/overview" />
+      <Card title="State & Events" icon="database" href="/corelib/state/overview" />
+      <Card title="Editor Workbench" icon="wrench" href="/editor/workbench/overview" />
+    </CardGroup>
+  </Step>
+</Steps>
 
 ---
 
 ## What this wiki is *not*
 
-- It is **not** an s&box beginner guide  
-- It is **not** a general C# tutorial  
-- It is **not** a replacement for upstream documentation  
+<Warning>
+This documentation assumes familiarity with s&box and C# development.
+</Warning>
 
-Instead, it focuses on **how *we* do things at Northbound**, and why.
+| This wiki is... | This wiki is not... |
+|-----------------|---------------------|
+| Northbound-specific patterns | An s&box beginner guide |
+| CoreLib system documentation | A general C# tutorial |
+| Our conventions and decisions | A replacement for upstream docs |
 
-When possible, we link to upstream docs rather than duplicating them.
+When possible, we link to upstream documentation rather than duplicating it.
 
 ---
 
 ## Keeping this useful
 
-This wiki is a living document. If you:
-- discover a recurring question
-- make an architectural decision
-- add or refactor a CoreLib system
-- find a sharp edge in a third-party library
-
-…document it here.
-
+<Tip>
 Clear docs are part of the engineering work, not an afterthought.
+</Tip>
+
+If you:
+- Discover a recurring question
+- Make an architectural decision
+- Add or refactor a CoreLib system
+- Find a sharp edge in a third-party library
+
+...document it here. This wiki is a living document that should evolve with our projects.

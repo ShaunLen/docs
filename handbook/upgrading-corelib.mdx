@@ -1,0 +1,326 @@
+---
+title: "Upgrading CoreLib"
+icon: "arrow-up"
+description: "How to update game projects to new CoreLib versions"
+---
+
+<Info>
+This guide covers the process of upgrading a game project to a new version of CoreLib.
+</Info>
+
+---
+
+## Before upgrading
+
+<Steps>
+  <Step title="Read the changelog">
+    Review all changes between your current version and the target version.
+
+    Pay special attention to:
+    - Breaking changes
+    - Deprecated APIs
+    - New required dependencies
+  </Step>
+  <Step title="Check compatibility">
+    Verify the new CoreLib version is compatible with:
+    - Your s&box version
+    - Other libraries you depend on
+  </Step>
+  <Step title="Create a branch">
+    Never upgrade on main directly
+
+    ```bash
+    git checkout -b chore/upgrade-corelib-1.5
+    ```
+  </Step>
+  <Step title="Backup if needed">
+    For major upgrades, ensure you have a clean backup point
+  </Step>
+</Steps>
+
+---
+
+## Upgrade process
+
+### Patch updates (1.2.0 → 1.2.1)
+
+<CardGroup cols={2}>
+  <Card title="Risk level" icon="shield-check" color="#16A34A">
+    Low — bug fixes only
+  </Card>
+  <Card title="Typical effort" icon="clock">
+    Minimal — usually just update and test
+  </Card>
+</CardGroup>
+
+<Steps>
+  <Step title="Update reference">
+    Update the CoreLib version reference in your project
+  </Step>
+  <Step title="Build and test">
+    Compile and run basic tests
+  </Step>
+  <Step title="Commit">
+    ```bash
+    git commit -m "chore: upgrade CoreLib to 1.2.1"
+    ```
+  </Step>
+</Steps>
+
+---
+
+### Minor updates (1.2.0 → 1.3.0)
+
+<CardGroup cols={2}>
+  <Card title="Risk level" icon="shield" color="#3B82F6">
+    Medium — new features, possible deprecations
+  </Card>
+  <Card title="Typical effort" icon="clock">
+    Moderate — may need to address deprecation warnings
+  </Card>
+</CardGroup>
+
+<Steps>
+  <Step title="Update reference">
+    Update the CoreLib version reference
+  </Step>
+  <Step title="Address deprecations">
+    Fix any deprecation warnings — don't ignore them
+
+    ```csharp
+    // Before
+    var context = new InputContext(); // Warning: Obsolete
+
+    // After
+    var scope = new InputScope();
+    ```
+  </Step>
+  <Step title="Review new features">
+    Check if new features benefit your project
+  </Step>
+  <Step title="Full test pass">
+    Test all systems that interact with CoreLib
+  </Step>
+</Steps>
+
+---
+
+### Major updates (1.x → 2.0)
+
+<CardGroup cols={2}>
+  <Card title="Risk level" icon="triangle-exclamation" color="#EAB308">
+    High — breaking changes expected
+  </Card>
+  <Card title="Typical effort" icon="clock">
+    Significant — plan dedicated time
+  </Card>
+</CardGroup>
+
+<Steps>
+  <Step title="Study the migration guide">
+    Major releases should include a migration guide. Read it thoroughly.
+  </Step>
+  <Step title="Plan the migration">
+    Identify all breaking changes that affect your project
+  </Step>
+  <Step title="Update incrementally">
+    If possible, upgrade through intermediate versions rather than jumping directly
+  </Step>
+  <Step title="Address breaking changes">
+    Work through each breaking change systematically
+  </Step>
+  <Step title="Comprehensive testing">
+    Test every system that uses CoreLib
+  </Step>
+</Steps>
+
+---
+
+## Common migration tasks
+
+<AccordionGroup>
+  <Accordion title="Renamed types or methods" icon="pen">
+    Use find-and-replace across the codebase:
+
+    ```
+    Find: InputContext
+    Replace: InputScope
+    ```
+
+    Or use IDE refactoring tools for safer renaming.
+  </Accordion>
+
+  <Accordion title="Changed method signatures" icon="code">
+    Update call sites to match new signatures:
+
+    ```csharp
+    // Before
+    provider.Register(interaction);
+
+    // After (added required parameter)
+    provider.Register(interaction, ValidationMode.Strict);
+    ```
+  </Accordion>
+
+  <Accordion title="Removed APIs" icon="trash">
+    Find the recommended replacement in the changelog:
+
+    ```csharp
+    // Removed
+    LegacyInputSystem.Process();
+
+    // Replacement
+    InputSystem.Current.ProcessFrame();
+    ```
+  </Accordion>
+
+  <Accordion title="Behaviour changes" icon="shuffle">
+    These are the trickiest. Test thoroughly:
+
+    ```csharp
+    // v1: Returned null on missing definition
+    // v2: Throws DefinitionNotFoundException
+
+    // You may need to add handling:
+    try
+    {
+        var def = Definitions.Get<WeaponDef>(id);
+    }
+    catch (DefinitionNotFoundException)
+    {
+        // Handle missing definition
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Testing after upgrade
+
+<CardGroup cols={2}>
+  <Card title="Automated tests" icon="vial">
+    Run all unit and integration tests
+  </Card>
+  <Card title="Manual testing" icon="hand-pointer">
+    Test key gameplay flows
+  </Card>
+  <Card title="Editor testing" icon="window">
+    Verify editor tools still work
+  </Card>
+  <Card title="Performance check" icon="gauge">
+    Watch for regressions
+  </Card>
+</CardGroup>
+
+### Test priority
+
+| Priority | What to test |
+|----------|-------------|
+| Critical | Core gameplay loops |
+| High | All CoreLib system integrations |
+| Medium | Edge cases and error handling |
+| Lower | UI and presentation |
+
+---
+
+## Troubleshooting
+
+<Tabs>
+  <Tab title="Build errors">
+    **Symptom:** Project won't compile after upgrade
+
+    **Solutions:**
+    1. Check for renamed types/namespaces
+    2. Look for removed APIs in changelog
+    3. Verify all dependencies are updated
+    4. Clean and rebuild the solution
+  </Tab>
+  <Tab title="Runtime errors">
+    **Symptom:** Crashes or exceptions at runtime
+
+    **Solutions:**
+    1. Check for behaviour changes in changelog
+    2. Verify data/definitions are still valid
+    3. Check for null handling changes
+    4. Review serialisation compatibility
+  </Tab>
+  <Tab title="Editor issues">
+    **Symptom:** Editor tools broken or missing
+
+    **Solutions:**
+    1. Clear editor caches
+    2. Check for editor assembly updates
+    3. Verify editor-specific migrations
+    4. Reimport affected assets
+  </Tab>
+</Tabs>
+
+---
+
+## Rollback plan
+
+<Warning>
+Always have a rollback plan before upgrading.
+</Warning>
+
+If the upgrade fails:
+
+```bash
+# Revert to previous state
+git checkout main
+
+# Delete the upgrade branch if needed
+git branch -D chore/upgrade-corelib-1.5
+```
+
+For partial issues:
+- Consider staying on the old version temporarily
+- Report issues to CoreLib maintainers
+- Wait for a patch release if issues are known
+
+---
+
+## Post-upgrade
+
+<Steps>
+  <Step title="Document changes">
+    Note any project-specific adjustments made during migration
+  </Step>
+  <Step title="Update dependencies">
+    Check if other libraries need updates for compatibility
+  </Step>
+  <Step title="Clean up">
+    Remove any temporary workarounds or compatibility code
+  </Step>
+  <Step title="Merge">
+    Create PR and merge the upgrade
+  </Step>
+</Steps>
+
+---
+
+## Summary
+
+| Update type | Risk | Process |
+|-------------|------|---------|
+| Patch | Low | Update, test, ship |
+| Minor | Medium | Update, fix deprecations, test |
+| Major | High | Plan, migrate, test thoroughly |
+
+<Note>
+When in doubt, upgrade incrementally rather than skipping versions. This makes it easier to identify which changes cause issues.
+</Note>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Releases" icon="rocket" href="/handbook/releases">
+    How CoreLib releases work
+  </Card>
+  <Card title="CoreLib Architecture" icon="diagram-project" href="/corelib/architecture">
+    Understanding CoreLib structure
+  </Card>
+</CardGroup>

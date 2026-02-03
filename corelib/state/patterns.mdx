@@ -1,0 +1,396 @@
+---
+title: "State & Event Patterns"
+icon: "shapes"
+description: "Recommended patterns for state and event usage"
+---
+
+<Info>
+This page collects recommended patterns for common state and event scenarios.
+</Info>
+
+---
+
+## State patterns
+
+### Game phase management
+
+```csharp
+public class MatchState : SharedState
+{
+    public MatchPhase Phase { get; private set; }
+
+    public void TransitionTo(MatchPhase newPhase)
+    {
+        var oldPhase = Phase;
+        Phase = newPhase;
+
+        Events.Dispatch(new PhaseChangedEvent
+        {
+            OldPhase = oldPhase,
+            NewPhase = newPhase
+        });
+    }
+}
+
+public enum MatchPhase
+{
+    WaitingForPlayers,
+    Countdown,
+    Active,
+    RoundEnd,
+    MatchEnd
+}
+
+// Usage
+Events.On<PhaseChangedEvent>(e =>
+{
+    switch (e.NewPhase)
+    {
+        case MatchPhase.Active:
+            EnablePlayerInput();
+            break;
+        case MatchPhase.RoundEnd:
+            DisablePlayerInput();
+            ShowScoreboard();
+            break;
+    }
+});
+```
+
+---
+
+### Player state aggregation
+
+```csharp
+public class PlayerState : SharedState
+{
+    // Raw values
+    public int BaseHealth { get; set; } = 100;
+    public int BaseArmor { get; set; } = 0;
+
+    // Buffs/debuffs
+    public ObservableList<StatModifier> Modifiers { get; } = new();
+
+    // Computed final values
+    public int MaxHealth => ComputeStat(StatType.Health, BaseHealth);
+    public int MaxArmor => ComputeStat(StatType.Armor, BaseArmor);
+
+    private int ComputeStat(StatType type, int baseValue)
+    {
+        var additive = Modifiers
+            .Where(m => m.Type == type && m.Mode == ModifierMode.Additive)
+            .Sum(m => m.Value);
+
+        var multiplier = Modifiers
+            .Where(m => m.Type == type && m.Mode == ModifierMode.Multiplicative)
+            .Aggregate(1f, (acc, m) => acc * m.Value);
+
+        return (int)((baseValue + additive) * multiplier);
+    }
+}
+
+public class StatModifier
+{
+    public StatType Type;
+    public ModifierMode Mode;
+    public float Value;
+    public float Duration;
+}
+```
+
+---
+
+### Settings with persistence
+
+```csharp
+public class SettingsState : SharedState
+{
+    public float MasterVolume { get; set; } = 1f;
+    public float SfxVolume { get; set; } = 1f;
+    public float MusicVolume { get; set; } = 0.8f;
+    public float MouseSensitivity { get; set; } = 1f;
+    public bool InvertY { get; set; } = false;
+
+    private const string SavePath = "settings.json";
+
+    public void Save()
+    {
+        var json = JsonSerializer.Serialize(this);
+        FileSystem.Data.WriteAllText(SavePath, json);
+    }
+
+    public void Load()
+    {
+        if (!FileSystem.Data.FileExists(SavePath))
+            return;
+
+        var json = FileSystem.Data.ReadAllText(SavePath);
+        var loaded = JsonSerializer.Deserialize<SettingsState>(json);
+
+        // Copy values
+        MasterVolume = loaded.MasterVolume;
+        SfxVolume = loaded.SfxVolume;
+        // ...
+
+        OnStateReplaced();
+    }
+
+    public void ResetToDefaults()
+    {
+        MasterVolume = 1f;
+        SfxVolume = 1f;
+        MusicVolume = 0.8f;
+        MouseSensitivity = 1f;
+        InvertY = false;
+
+        OnStateReplaced();
+    }
+}
+```
+
+---
+
+## Event patterns
+
+### Command pattern with events
+
+```csharp
+// Commands as events
+public struct MoveCommand
+{
+    public Player Player;
+    public Vector3 Direction;
+}
+
+public struct AttackCommand
+{
+    public Player Player;
+    public Player Target;
+}
+
+// Command handler
+public class CommandProcessor
+{
+    public CommandProcessor()
+    {
+        Events.On<MoveCommand>(Execute);
+        Events.On<AttackCommand>(Execute);
+    }
+
+    private void Execute(MoveCommand cmd)
+    {
+        cmd.Player.Move(cmd.Direction);
+    }
+
+    private void Execute(AttackCommand cmd)
+    {
+        if (cmd.Target.IsAlive)
+        {
+            cmd.Player.Attack(cmd.Target);
+        }
+    }
+}
+
+// Input creates commands
+Events.Dispatch(new MoveCommand
+{
+    Player = Local.Pawn,
+    Direction = InputSystem.GetAxis2D("move")
+});
+```
+
+---
+
+### Event aggregator (mediator)
+
+```csharp
+public class GameEventAggregator
+{
+    // Single entry point for all game events
+    public void PlayerKilled(Player victim, Player killer, Weapon weapon)
+    {
+        // Dispatch multiple events from single action
+        Events.Dispatch(new KillEvent { Victim = victim, Killer = killer });
+        Events.Dispatch(new ScoreEvent { Player = killer, Points = 100 });
+
+        if (weapon.IsExplosive)
+        {
+            Events.Dispatch(new ExplosiveKillEvent { ... });
+        }
+
+        if (victim.Streak >= 5)
+        {
+            Events.Dispatch(new StreakEndedEvent { Player = victim, Streak = victim.Streak });
+        }
+    }
+}
+```
+
+---
+
+### Event sourcing (history)
+
+```csharp
+public class EventHistory
+{
+    private List<IGameEvent> _events = new();
+
+    public void Record<T>(T evt) where T : IGameEvent
+    {
+        evt.Timestamp = Time.Now;
+        _events.Add(evt);
+
+        // Forward to normal event system
+        Events.Dispatch(evt);
+    }
+
+    public IEnumerable<T> GetEvents<T>() where T : IGameEvent
+    {
+        return _events.OfType<T>();
+    }
+
+    public void Replay(float fromTime)
+    {
+        foreach (var evt in _events.Where(e => e.Timestamp >= fromTime))
+        {
+            Events.Dispatch(evt);
+        }
+    }
+}
+
+public interface IGameEvent
+{
+    float Timestamp { get; set; }
+}
+```
+
+---
+
+### UI binding pattern
+
+```csharp
+public class StateBoundUI : Panel
+{
+    private List<IDisposable> _bindings = new();
+
+    protected void BindTo<T>(Func<T> getter, Action<T> setter)
+    {
+        // Initial value
+        setter(getter());
+
+        // Subscribe to relevant state changes
+        // Implementation depends on your state system
+    }
+
+    protected override void OnStart()
+    {
+        var state = State.Get<PlayerState>();
+
+        // Bind UI to state
+        BindTo(() => state.Health, v => _healthLabel.Text = $"{v}");
+        BindTo(() => state.Armor, v => _armorLabel.Text = $"{v}");
+    }
+
+    protected override void OnDestroy()
+    {
+        foreach (var binding in _bindings)
+            binding.Dispose();
+    }
+}
+```
+
+---
+
+## Anti-patterns
+
+<Warning>
+Avoid these common mistakes.
+</Warning>
+
+<AccordionGroup>
+  <Accordion title="Event ping-pong" icon="table-tennis-paddle-ball">
+    **Problem:** Events causing events in infinite loops
+
+    ```csharp
+    // Bad: Creates infinite loop
+    Events.On<ScoreChangedEvent>(e =>
+    {
+        Events.Dispatch(new UIUpdateEvent());
+    });
+
+    Events.On<UIUpdateEvent>(e =>
+    {
+        Events.Dispatch(new ScoreChangedEvent());
+    });
+    ```
+
+    **Solution:** Break the cycle with direct calls or state checks
+  </Accordion>
+
+  <Accordion title="Fat events" icon="weight-scale">
+    **Problem:** Events with too much data
+
+    ```csharp
+    // Bad: Kitchen-sink event
+    public struct GameEvent
+    {
+        public Player Player;
+        public Player OtherPlayer;
+        public Weapon Weapon;
+        public Item Item;
+        public Vector3 Position;
+        public string EventType; // "kill", "pickup", "damage"...
+    }
+    ```
+
+    **Solution:** Separate events for separate concepts
+  </Accordion>
+
+  <Accordion title="Storing event data" icon="database">
+    **Problem:** Keeping references to event data
+
+    ```csharp
+    // Bad: Event data may become invalid
+    private DamageEvent _lastDamage;
+
+    Events.On<DamageEvent>(e =>
+    {
+        _lastDamage = e; // Don't do this!
+    });
+    ```
+
+    **Solution:** Copy needed values to local state
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Choosing between state and events
+
+| Scenario | Use |
+|----------|-----|
+| Player health | State (queried often, persists) |
+| "Player took damage" | Event (notification) |
+| Current score | State |
+| "Score changed" | Event |
+| Inventory contents | State |
+| "Item picked up" | Event |
+| UI open/closed | State |
+| "Button clicked" | Event |
+
+<Tip>
+State is the "what is". Events are the "what happened".
+</Tip>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Shared State" icon="database" href="/corelib/state/shared-state">
+    State system details
+  </Card>
+  <Card title="Events" icon="bolt" href="/corelib/state/events">
+    Event system details
+  </Card>
+</CardGroup>

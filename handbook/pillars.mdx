@@ -4,103 +4,148 @@ icon: "columns"
 description: "The values and constraints that guide technical decisions at Northbound"
 ---
 
-## What these pillars are
+<Info>
+These pillars define **what we optimise for** when making technical decisions. They are intentionally high-level.
+</Info>
 
-These pillars define **what we optimise for** when making technical decisions.
-
-They are intentionally high-level.  
-They do not describe workflows, processes, or step-by-step practices — those live elsewhere.
-
-If a decision aligns with these pillars, it is usually a good one.  
-If it violates them, it should do so intentionally.
+If a decision aligns with these pillars, it is usually a good one. If it violates them, it should do so **intentionally and with clear reasoning**.
 
 ---
 
-## Longevity over immediacy
+## The pillars
 
-We optimise for systems that remain understandable and adaptable over time.
+<AccordionGroup>
+  <Accordion title="Longevity over immediacy" icon="hourglass-half">
+    We optimise for systems that remain understandable and adaptable over time.
 
-Short-term convenience should not compromise:
-- clarity
-- maintainability
-- the ability to evolve without large rewrites
+    Short-term convenience should not compromise:
+    - Clarity
+    - Maintainability
+    - The ability to evolve without large rewrites
+
+    **Ask:** Will this decision make sense in six months? Will it be easy to change?
+  </Accordion>
+
+  <Accordion title="Shared solutions over local fixes" icon="cubes">
+    When a problem appears more than once, it is a candidate for a shared solution.
+
+    We prefer:
+    - Improving a shared system
+    - Centralising complexity
+    - Avoiding divergent implementations of the same idea
+
+    **Ask:** Has this problem been solved elsewhere? Should this solution be shared?
+  </Accordion>
+
+  <Accordion title="Explicitness over magic" icon="eye">
+    Systems should be understandable by reading the code.
+
+    We avoid:
+    - Hidden behaviour
+    - Implicit coupling
+    - Configuration that meaningfully alters logic without visibility
+
+    **Ask:** Can someone understand this by reading the code? Are there hidden surprises?
+  </Accordion>
+
+  <Accordion title="Data clarity over flexibility" icon="database">
+    Data should describe *what exists*, not *how it behaves*.
+
+    Flexibility is valuable, but not when it obscures:
+    - Intent
+    - Ownership
+    - Responsibility
+
+    Behaviour belongs in code.
+
+    **Ask:** Is this data or is this behaviour? Are we mixing concerns?
+  </Accordion>
+
+  <Accordion title="Authority over trust" icon="shield-halved">
+    When correctness matters, the system that enforces rules must be authoritative.
+
+    Client-side logic is for responsiveness and presentation, not truth.
+
+    **Ask:** Who owns the truth here? Can this be exploited or desynchronised?
+  </Accordion>
+
+  <Accordion title="Composition over replacement" icon="puzzle-piece">
+    We extend existing engine and platform concepts rather than replacing them.
+
+    Building on established patterns reduces fragility and lowers the cost of future changes.
+
+    **Ask:** Are we working with s&box or against it? Are we reinventing something that exists?
+  </Accordion>
+
+  <Accordion title="Leverage over speed" icon="scale-balanced">
+    We are willing to invest more effort upfront to reduce long-term cost.
+
+    Tooling, validation, and shared infrastructure are treated as multipliers, not overhead.
+
+    **Ask:** Will this investment pay off? Are we building leverage or just shipping faster?
+  </Accordion>
+
+  <Accordion title="Consistency over novelty" icon="equals">
+    A consistent solution that fits existing patterns is preferred over a novel one.
+
+    Predictability reduces cognitive load and improves collaboration.
+
+    **Ask:** Does this match how we do things elsewhere? Is the novelty justified?
+  </Accordion>
+</AccordionGroup>
 
 ---
 
-## Shared solutions over local fixes
+## Quick reference
 
-When a problem appears more than once, it is a candidate for a shared solution.
-
-We prefer:
-- improving a shared system
-- centralising complexity
-- avoiding divergent implementations of the same idea
-
----
-
-## Explicitness over magic
-
-Systems should be understandable by reading the code.
-
-We avoid:
-- hidden behaviour
-- implicit coupling
-- configuration that meaningfully alters logic without visibility
-
-Explicit systems are easier to debug, reason about, and change.
-
----
-
-## Data clarity over flexibility
-
-Data should describe *what exists*, not *how it behaves*.
-
-Flexibility is valuable, but not when it obscures:
-- intent
-- ownership
-- responsibility
-
-Behaviour belongs in code.
-
----
-
-## Authority over trust
-
-When correctness matters, the system that enforces rules must be authoritative.
-
-Client-side logic is for responsiveness and presentation, not truth.
-
----
-
-## Composition over replacement
-
-We extend existing engine and platform concepts rather than replacing them.
-
-Building on established patterns reduces fragility and lowers the cost of future changes.
-
----
-
-## Leverage over speed
-
-We are willing to invest more effort upfront to reduce long-term cost.
-
-Tooling, validation, and shared infrastructure are treated as multipliers, not overhead.
-
----
-
-## Consistency over novelty
-
-A consistent solution that fits existing patterns is preferred over a novel one.
-
-Predictability reduces cognitive load and improves collaboration.
+| Pillar | Optimise for | Avoid |
+|--------|--------------|-------|
+| Longevity | Understandable, adaptable code | Short-term hacks |
+| Shared solutions | Centralised, reusable systems | Duplicated implementations |
+| Explicitness | Readable, obvious behaviour | Hidden magic |
+| Data clarity | Clear data/behaviour separation | Mixed concerns |
+| Authority | Server-authoritative truth | Client-side trust |
+| Composition | Extension over replacement | Fighting the platform |
+| Leverage | Upfront investment | Rushing without tooling |
+| Consistency | Predictable patterns | Unnecessary novelty |
 
 ---
 
 ## Using these pillars
 
-Use these pillars to:
-- evaluate architectural proposals
-- guide refactors
-- resolve design disagreements
+<Tabs>
+  <Tab title="Evaluate proposals">
+    When reviewing architectural proposals, check each pillar:
+    - Does this align with our values?
+    - If it violates a pillar, is that intentional?
+    - What's the reasoning?
+  </Tab>
+  <Tab title="Guide refactors">
+    When refactoring, use pillars as a compass:
+    - Which pillar does this improve?
+    - Are we moving toward or away from our ideals?
+  </Tab>
+  <Tab title="Resolve disagreements">
+    When design discussions stall:
+    - Reference the pillars explicitly
+    - Discuss which values are in tension
+    - Make trade-offs intentionally
+  </Tab>
+</Tabs>
 
-They describe *direction*, not *implementation*.
+<Note>
+These pillars describe *direction*, not *implementation*. They inform decisions but don't dictate specific solutions.
+</Note>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Design Guidelines" icon="compass-drafting" href="/handbook/design-guidelines">
+    More concrete guidance for system and API design
+  </Card>
+  <Card title="Code Style" icon="code" href="/handbook/code-style">
+    Conventions for readable, consistent code
+  </Card>
+</CardGroup>

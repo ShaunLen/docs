@@ -1,0 +1,355 @@
+---
+title: "Definition Validation"
+icon: "shield"
+description: "Validating definition data at authoring time"
+---
+
+<Info>
+Validation catches errors at authoring time, preventing runtime issues and improving data quality.
+</Info>
+
+---
+
+## Built-in validation
+
+### Required fields
+
+```csharp
+public class ItemDefinition : Definition
+{
+    [Required]
+    public string DisplayName { get; set; }
+
+    [Required(ErrorMessage = "Every item needs an icon")]
+    public string Icon { get; set; }
+}
+```
+
+### Range validation
+
+```csharp
+public class WeaponDefinition : Definition
+{
+    [Range(1, 500, ErrorMessage = "Damage must be 1-500")]
+    public float Damage { get; set; }
+
+    [Range(0.1f, 10f)]
+    public float FireRate { get; set; }
+
+    [Range(1, 200)]
+    public int MagazineSize { get; set; }
+}
+```
+
+### String validation
+
+```csharp
+public class Definition
+{
+    [StringLength(50, MinimumLength = 3)]
+    public string DisplayName { get; set; }
+
+    [RegularExpression(@"^[a-z_]+$", ErrorMessage = "ID must be lowercase with underscores")]
+    public string Id { get; set; }
+}
+```
+
+---
+
+## Reference validation
+
+### Valid references
+
+```csharp
+public class WeaponDefinition : Definition
+{
+    [Reference(typeof(AmmoDefinition))]
+    public string AmmoTypeId { get; set; }
+}
+
+// Validation ensures:
+// - AmmoTypeId refers to an existing AmmoDefinition
+// - No circular references
+// - Reference target passes its own validation
+```
+
+### Optional references
+
+```csharp
+[Reference(typeof(SoundDefinition), Required = false)]
+public string FireSoundId { get; set; }  // Can be null/empty
+```
+
+---
+
+## Asset validation
+
+```csharp
+public class WeaponDefinition : Definition
+{
+    [AssetPath("models/*.vmdl")]
+    public string ModelPath { get; set; }
+
+    [AssetPath("sounds/*.vsnd")]
+    public string FireSound { get; set; }
+
+    [AssetPath("textures/icons/*.png")]
+    public string Icon { get; set; }
+}
+```
+
+Validates:
+- File exists
+- Matches pattern
+- File is valid asset
+
+---
+
+## Custom validation
+
+### Validation method
+
+```csharp
+public class RecipeDefinition : Definition, IValidatable
+{
+    public string OutputItemId { get; set; }
+    public List<RecipeIngredient> Ingredients { get; set; }
+
+    public void Validate(ValidationContext context)
+    {
+        // Must have at least one ingredient
+        if (Ingredients == null || Ingredients.Count == 0)
+        {
+            context.AddError("Recipe must have at least one ingredient");
+        }
+
+        // Output can't be an ingredient
+        if (Ingredients?.Any(i => i.ItemId == OutputItemId) == true)
+        {
+            context.AddError("Output item cannot be an ingredient");
+        }
+    }
+}
+```
+
+### Validation attribute
+
+```csharp
+[AttributeUsage(AttributeTargets.Property)]
+public class PositiveAttribute : ValidationAttribute
+{
+    protected override ValidationResult IsValid(object value, ValidationContext context)
+    {
+        if (value is float f && f <= 0)
+        {
+            return new ValidationResult("Value must be positive");
+        }
+        return ValidationResult.Success;
+    }
+}
+
+// Usage
+public class WeaponDefinition : Definition
+{
+    [Positive]
+    public float Damage { get; set; }
+}
+```
+
+---
+
+## Cross-definition validation
+
+### Unique constraints
+
+```csharp
+[UniqueWithin(nameof(DisplayName))]
+public class ItemDefinition : Definition
+{
+    public string DisplayName { get; set; }  // Must be unique across all items
+}
+```
+
+### Relational validation
+
+```csharp
+public class ValidationRules : IDefinitionValidator
+{
+    public void Validate(ValidationContext context)
+    {
+        var items = context.GetAll<ItemDefinition>();
+        var recipes = context.GetAll<RecipeDefinition>();
+
+        // Every craftable item should have a recipe
+        var craftableWithoutRecipe = items
+            .Where(i => i.IsCraftable)
+            .Where(i => !recipes.Any(r => r.OutputItemId == i.Id));
+
+        foreach (var item in craftableWithoutRecipe)
+        {
+            context.AddWarning($"Craftable item '{item.Id}' has no recipe");
+        }
+    }
+}
+```
+
+---
+
+## Validation levels
+
+| Level | Icon | Use |
+|-------|------|-----|
+| **Error** | Red | Must be fixed, prevents save |
+| **Warning** | Yellow | Should be addressed |
+| **Info** | Blue | Informational note |
+
+```csharp
+public void Validate(ValidationContext context)
+{
+    if (Damage <= 0)
+    {
+        context.AddError("Damage must be positive");
+    }
+
+    if (Damage > 100)
+    {
+        context.AddWarning("High damage value - is this intentional?");
+    }
+
+    if (string.IsNullOrEmpty(Description))
+    {
+        context.AddInfo("Consider adding a description");
+    }
+}
+```
+
+---
+
+## Validation UI
+
+### In editor
+
+The editor shows validation results in real-time:
+
+- Red border on invalid fields
+- Error messages below fields
+- Summary panel with all issues
+- Fix suggestions where possible
+
+### Validation on save
+
+```csharp
+// Cannot save with errors
+if (context.HasErrors)
+{
+    ShowErrorDialog("Fix validation errors before saving");
+    return false;
+}
+
+// Warnings show confirmation
+if (context.HasWarnings)
+{
+    if (!ShowConfirmDialog("Save with warnings?"))
+        return false;
+}
+
+Save();
+return true;
+```
+
+---
+
+## Batch validation
+
+```csharp
+// Validate all definitions
+var results = Definitions.ValidateAll();
+
+foreach (var result in results.Where(r => !r.IsValid))
+{
+    Log.Error($"{result.DefinitionId}: {result.Message}");
+}
+
+// Validate specific type
+var weaponResults = Definitions.ValidateAll<WeaponDefinition>();
+```
+
+---
+
+## Common validation patterns
+
+<AccordionGroup>
+  <Accordion title="Balanced stats" icon="scale-balanced">
+    ```csharp
+    public void Validate(ValidationContext context)
+    {
+        // DPS check
+        var dps = Damage * FireRate;
+        if (dps > 200)
+        {
+            context.AddWarning($"High DPS ({dps:F0}) - balance review needed");
+        }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Complete sets" icon="layer-group">
+    ```csharp
+    // Every weapon category should have at least one weapon
+    var categories = Enum.GetValues<WeaponCategory>();
+    var weapons = context.GetAll<WeaponDefinition>();
+
+    foreach (var category in categories)
+    {
+        if (!weapons.Any(w => w.Category == category))
+        {
+            context.AddWarning($"No weapons in category: {category}");
+        }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Localization check" icon="language">
+    ```csharp
+    public void Validate(ValidationContext context)
+    {
+        if (!Localization.HasKey(DisplayNameKey))
+        {
+            context.AddWarning($"Missing localization for '{DisplayNameKey}'");
+        }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Validate early" icon="clock">
+    Add validation as you define properties
+  </Card>
+  <Card title="Clear messages" icon="comment">
+    Explain what's wrong and how to fix it
+  </Card>
+  <Card title="Use warnings wisely" icon="triangle-exclamation">
+    Don't overuse — only for genuine concerns
+  </Card>
+  <Card title="Test edge cases" icon="vial">
+    Validate boundary conditions
+  </Card>
+</CardGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Authoring" icon="pen" href="/corelib/definitions/authoring">
+    Creating definitions with validation
+  </Card>
+  <Card title="Editor Validation" icon="window" href="/editor/workbench/validation">
+    Validation in editor tools
+  </Card>
+</CardGroup>

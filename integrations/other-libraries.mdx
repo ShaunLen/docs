@@ -1,0 +1,180 @@
+---
+title: "Other Libraries"
+icon: "plug"
+description: "Third-party library usage and conventions at Northbound"
+---
+
+<Info>
+This page documents how we integrate with various third-party libraries.
+</Info>
+
+---
+
+## General principles
+
+When using third-party libraries:
+
+<CardGroup cols={2}>
+  <Card title="Wrap, don't expose" icon="box">
+    Create wrappers rather than exposing library APIs directly
+  </Card>
+  <Card title="Document gotchas" icon="triangle-exclamation">
+    Record issues and workarounds here
+  </Card>
+  <Card title="Version carefully" icon="tag">
+    Pin versions and document upgrade paths
+  </Card>
+  <Card title="Isolate dependencies" icon="layer-group">
+    Keep third-party code in dedicated namespaces
+  </Card>
+</CardGroup>
+
+---
+
+## Library evaluation
+
+Before adding a new library, consider:
+
+| Question | Concern |
+|----------|---------|
+| Is it maintained? | Abandoned libraries become liabilities |
+| Does it conflict? | Check for API or pattern conflicts |
+| Can we live without it? | Simpler is often better |
+| What's the licensing? | Ensure compatibility |
+
+---
+
+## Wrapper pattern
+
+```csharp
+// Don't expose library directly
+public class MySystem
+{
+    // Bad: Leaks library types
+    public ThirdPartyResult DoThing(ThirdPartyInput input);
+
+    // Good: Use our own types
+    public MyResult DoThing(MyInput input)
+    {
+        // Convert and delegate internally
+        var libInput = ConvertToLibrary(input);
+        var libResult = _library.Process(libInput);
+        return ConvertFromLibrary(libResult);
+    }
+}
+```
+
+### Benefits
+
+- Can swap libraries without changing API
+- Add validation and logging
+- Adapt to our patterns
+- Document behavior
+
+---
+
+## Common libraries
+
+### Serialization
+
+We use System.Text.Json for JSON serialization:
+
+```csharp
+// Standard options used across CoreLib
+public static JsonSerializerOptions StandardOptions = new()
+{
+    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    WriteIndented = false,
+    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+};
+```
+
+<Note>
+Prefer System.Text.Json over Newtonsoft for new code.
+</Note>
+
+### Collections
+
+For specialized collections:
+
+```csharp
+// Use s&box/CoreLib collections where available
+using Sandbox.Collections;
+
+// For missing functionality, document the library used
+```
+
+---
+
+## Adding new libraries
+
+<Steps>
+  <Step title="Evaluate need">
+    Can we solve this without a library?
+  </Step>
+  <Step title="Discuss with team">
+    Share findings and get input
+  </Step>
+  <Step title="Create wrapper">
+    Don't expose library types directly
+  </Step>
+  <Step title="Document here">
+    Add an entry explaining usage
+  </Step>
+  <Step title="Pin version">
+    Document the version and any patches
+  </Step>
+</Steps>
+
+---
+
+## Documenting libraries
+
+When adding library documentation, include:
+
+```markdown
+## [Library Name]
+
+**Version:** X.Y.Z
+**Purpose:** What we use it for
+**Source:** Link to library
+
+### Usage
+How we use it at Northbound.
+
+### Gotchas
+Known issues and workarounds.
+
+### Wrapper
+Where our wrapper lives.
+```
+
+---
+
+## Known issues
+
+<AccordionGroup>
+  <Accordion title="Generic gotcha template" icon="bug">
+    **Issue:** Description of the problem
+
+    **Workaround:**
+    ```csharp
+    // Code showing the workaround
+    ```
+
+    **Status:** Waiting for library update / permanent workaround
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="GameEvents" icon="bolt" href="/integrations/game-events">
+    Facepunch GameEvents integration
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/handbook/architecture-conventions">
+    How libraries fit in our architecture
+  </Card>
+</CardGroup>

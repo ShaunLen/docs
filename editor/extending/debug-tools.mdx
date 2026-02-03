@@ -1,0 +1,327 @@
+---
+title: "Debug Tools"
+icon: "bug"
+description: "Building runtime debugging and inspection tools"
+---
+
+<Info>
+Debug tools help you understand what's happening at runtime. Build custom tools to inspect your systems.
+</Info>
+
+---
+
+## Debug overlay
+
+Create in-game debug visualization:
+
+```csharp
+public class InteractionDebugOverlay : Component
+{
+    [Property]
+    public bool ShowRanges { get; set; } = true;
+
+    [Property]
+    public bool ShowCandidates { get; set; } = true;
+
+    protected override void OnUpdate()
+    {
+        if (!Game.IsDebugBuild)
+            return;
+
+        var provider = Local.Pawn?.Components.Get<InteractionProvider>();
+        if (provider == null)
+            return;
+
+        if (ShowRanges)
+            DrawRanges(provider);
+
+        if (ShowCandidates)
+            DrawCandidates(provider);
+    }
+
+    private void DrawRanges(InteractionProvider provider)
+    {
+        DebugOverlay.Sphere(
+            provider.Position,
+            provider.ScanRadius,
+            Color.Yellow.WithAlpha(0.3f)
+        );
+    }
+
+    private void DrawCandidates(InteractionProvider provider)
+    {
+        foreach (var candidate in provider.Candidates)
+        {
+            var color = candidate.IsValid ? Color.Green : Color.Red;
+            DebugOverlay.Line(provider.Position, candidate.Position, color);
+            DebugOverlay.Text(candidate.Name, candidate.Position, color);
+        }
+    }
+}
+```
+
+---
+
+## Debug panel
+
+Create a debug UI panel:
+
+```csharp
+public class SystemDebugPanel : Panel
+{
+    protected override void OnBuild()
+    {
+        AddSection("Input System", BuildInputSection);
+        AddSection("Interactions", BuildInteractionSection);
+        AddSection("State", BuildStateSection);
+    }
+
+    private void BuildInputSection(Panel parent)
+    {
+        parent.Add.Label($"Active Context: {InputSystem.ActiveContext}");
+        parent.Add.Label($"Last Device: {InputSystem.LastActiveDevice}");
+
+        foreach (var action in InputSystem.ActiveActions)
+        {
+            var state = InputSystem.IsActionHeld(action) ? "Held" : "Released";
+            parent.Add.Label($"  {action}: {state}");
+        }
+    }
+
+    private void BuildInteractionSection(Panel parent)
+    {
+        var provider = Local.Pawn?.Components.Get<InteractionProvider>();
+        if (provider == null)
+        {
+            parent.Add.Label("No interaction provider");
+            return;
+        }
+
+        parent.Add.Label($"Candidates: {provider.CandidateCount}");
+        parent.Add.Label($"Current: {provider.CurrentInteraction?.Name ?? "None"}");
+    }
+}
+```
+
+---
+
+## Console commands
+
+```csharp
+public static class DebugCommands
+{
+    [ConCmd.Client("debug_input")]
+    public static void DebugInput()
+    {
+        Log.Info($"Active Context: {InputSystem.ActiveContext}");
+        Log.Info($"Context Stack: {string.Join(" > ", InputSystem.ContextStack)}");
+
+        foreach (var action in InputSystem.ActiveActions)
+        {
+            var binding = InputSystem.GetPrimaryBinding(action);
+            Log.Info($"  {action}: {binding?.DisplayName ?? "Unbound"}");
+        }
+    }
+
+    [ConCmd.Client("debug_interactions")]
+    public static void DebugInteractions()
+    {
+        var provider = Local.Pawn?.Components.Get<InteractionProvider>();
+        if (provider == null)
+        {
+            Log.Info("No interaction provider");
+            return;
+        }
+
+        Log.Info($"Scan radius: {provider.ScanRadius}");
+        Log.Info($"Candidates:");
+
+        foreach (var candidate in provider.Candidates)
+        {
+            Log.Info($"  {candidate.Name} - Valid: {candidate.IsValid}");
+        }
+    }
+
+    [ConCmd.Client("debug_state")]
+    public static void DebugState(string stateType = null)
+    {
+        if (string.IsNullOrEmpty(stateType))
+        {
+            // List all states
+            foreach (var state in State.GetAll())
+            {
+                Log.Info($"  {state.GetType().Name}");
+            }
+        }
+        else
+        {
+            // Dump specific state
+            var state = State.GetByName(stateType);
+            Log.Info(JsonSerializer.Serialize(state, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            }));
+        }
+    }
+}
+```
+
+---
+
+## Metrics dashboard
+
+```csharp
+public class MetricsDashboard : Panel
+{
+    private Dictionary<string, Label> _metricLabels = new();
+
+    protected override void OnBuild()
+    {
+        AddMetric("FPS", () => $"{1f / Time.Delta:F0}");
+        AddMetric("Entities", () => Scene.GetAll<Entity>().Count().ToString());
+        AddMetric("Input Updates", () => InputSystem.Metrics.UpdatesPerSecond.ToString());
+        AddMetric("Interactions Scanned", () =>
+            InteractionSystem.Metrics.ScansPerSecond.ToString());
+    }
+
+    private void AddMetric(string name, Func<string> getter)
+    {
+        var row = Add.Panel("metric-row");
+        row.Add.Label(name, "metric-name");
+        var value = row.Add.Label("", "metric-value");
+        _metricLabels[name] = value;
+
+        // Update periodically
+        _ = UpdateLoop(name, getter);
+    }
+
+    private async Task UpdateLoop(string name, Func<string> getter)
+    {
+        while (IsValid)
+        {
+            _metricLabels[name].Text = getter();
+            await Task.DelayRealtimeSeconds(0.1f);
+        }
+    }
+}
+```
+
+---
+
+## Inspection tools
+
+### Object inspector
+
+```csharp
+public class RuntimeInspector : Panel
+{
+    private object _target;
+
+    public void Inspect(object target)
+    {
+        _target = target;
+        Rebuild();
+    }
+
+    private void Rebuild()
+    {
+        Clear();
+
+        if (_target == null)
+        {
+            Add.Label("Nothing selected");
+            return;
+        }
+
+        Add.Label(_target.GetType().Name, "header");
+
+        foreach (var prop in _target.GetType().GetProperties())
+        {
+            try
+            {
+                var value = prop.GetValue(_target);
+                AddProperty(prop.Name, value);
+            }
+            catch { }
+        }
+    }
+
+    private void AddProperty(string name, object value)
+    {
+        var row = Add.Panel("property-row");
+        row.Add.Label(name, "property-name");
+        row.Add.Label(value?.ToString() ?? "null", "property-value");
+    }
+}
+```
+
+---
+
+## Debug toggles
+
+```csharp
+public class DebugSettings
+{
+    public static bool ShowHitboxes { get; set; }
+    public static bool ShowPaths { get; set; }
+    public static bool ShowNetworkInfo { get; set; }
+    public static bool LogInputEvents { get; set; }
+    public static bool LogInteractionEvents { get; set; }
+}
+
+public class DebugMenu : Panel
+{
+    protected override void OnBuild()
+    {
+        AddToggle("Show Hitboxes", () => DebugSettings.ShowHitboxes,
+            v => DebugSettings.ShowHitboxes = v);
+
+        AddToggle("Show Paths", () => DebugSettings.ShowPaths,
+            v => DebugSettings.ShowPaths = v);
+
+        AddToggle("Log Input", () => DebugSettings.LogInputEvents,
+            v => DebugSettings.LogInputEvents = v);
+    }
+
+    private void AddToggle(string label, Func<bool> getter, Action<bool> setter)
+    {
+        var row = Add.Panel("toggle-row");
+        row.Add.Label(label);
+
+        var toggle = row.Add.Checkbox(getter());
+        toggle.OnChange += (value) => setter(value);
+    }
+}
+```
+
+---
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Guard with IsDebugBuild" icon="shield">
+    Disable debug features in release builds
+  </Card>
+  <Card title="Minimal performance impact" icon="bolt">
+    Debug tools shouldn't slow down the game
+  </Card>
+  <Card title="Toggle-able" icon="toggle-on">
+    Let developers enable/disable features
+  </Card>
+  <Card title="Clear visualization" icon="eye">
+    Make debug info easy to read
+  </Card>
+</CardGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Logging" icon="file-lines" href="/handbook/logging-and-debugging">
+    Logging conventions
+  </Card>
+  <Card title="Input Debugging" icon="gamepad" href="/corelib/input/debugging">
+    Input-specific debugging
+  </Card>
+</CardGroup>

@@ -1,0 +1,326 @@
+---
+title: "Working Copy"
+icon: "copy"
+description: "Safe data editing with working copies"
+---
+
+<Info>
+Working copies let you edit data safely without affecting the original until you explicitly save.
+</Info>
+
+---
+
+## Why working copies?
+
+<Tabs>
+  <Tab title="Without">
+    ```csharp
+    // Dangerous: Direct editing
+    var weapon = Definitions.Get<WeaponDefinition>("pistol");
+    weapon.Damage = 999; // Changed immediately!
+
+    // Can't cancel - original is modified
+    // Can't see "before" state
+    // Errors affect live data
+    ```
+  </Tab>
+  <Tab title="With">
+    ```csharp
+    // Safe: Working copy
+    var copy = new WorkingCopy<WeaponDefinition>(weapon);
+    copy.Current.Damage = 999; // Only affects copy
+
+    // Can cancel to discard changes
+    copy.Revert();
+
+    // Or save to apply
+    copy.Save();
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Creating working copies
+
+### Single item
+
+```csharp
+// From existing definition
+var original = Definitions.Get<WeaponDefinition>("pistol");
+var copy = new WorkingCopy<WeaponDefinition>(original);
+
+// Access the editable version
+copy.Current.Damage = 50;
+```
+
+### Collections
+
+```csharp
+// From collection
+var allWeapons = Definitions.GetAll<WeaponDefinition>();
+var copy = new WorkingCopy<WeaponDefinition>(allWeapons);
+
+// Access items
+foreach (var weapon in copy.Items)
+{
+    // Edit each item
+}
+```
+
+---
+
+## Change tracking
+
+### Dirty state
+
+```csharp
+var copy = new WorkingCopy<WeaponDefinition>(original);
+
+copy.IsDirty; // false
+
+copy.Current.Damage = 100;
+
+copy.IsDirty; // true
+```
+
+### Property-level tracking
+
+```csharp
+// Check specific properties
+if (copy.IsPropertyDirty(nameof(WeaponDefinition.Damage)))
+{
+    ShowDirtyIndicator();
+}
+
+// Get changed properties
+foreach (var prop in copy.DirtyProperties)
+{
+    Log.Info($"Changed: {prop}");
+}
+```
+
+### Original vs current
+
+```csharp
+// Compare values
+var originalDamage = copy.GetOriginalValue(nameof(WeaponDefinition.Damage));
+var currentDamage = copy.Current.Damage;
+
+Log.Info($"Changed from {originalDamage} to {currentDamage}");
+```
+
+---
+
+## Saving and reverting
+
+### Save changes
+
+```csharp
+// Check before saving
+if (copy.IsDirty)
+{
+    copy.Save(); // Applies changes to original
+}
+
+// IsDirty is now false
+```
+
+### Revert changes
+
+```csharp
+// Discard all changes
+copy.Revert(); // Restores to original state
+
+// Revert specific property
+copy.RevertProperty(nameof(WeaponDefinition.Damage));
+```
+
+### Partial save
+
+```csharp
+// Save only specific properties
+copy.SaveProperty(nameof(WeaponDefinition.Damage));
+copy.SaveProperty(nameof(WeaponDefinition.FireRate));
+// Other changes remain unsaved
+```
+
+---
+
+## Validation integration
+
+```csharp
+var copy = new WorkingCopy<WeaponDefinition>(original);
+
+// Validation runs automatically
+copy.OnValidationChanged += (result) =>
+{
+    if (result.HasErrors)
+    {
+        ShowErrors(result.Errors);
+    }
+};
+
+// Can't save with errors
+if (copy.HasErrors)
+{
+    ShowMessage("Fix errors before saving");
+    return;
+}
+
+copy.Save();
+```
+
+---
+
+## History integration
+
+Working copies integrate with undo/redo:
+
+```csharp
+var copy = new WorkingCopy<WeaponDefinition>(original);
+
+// Changes are recorded
+copy.Current.Damage = 100; // Recorded
+copy.Current.Damage = 200; // Recorded
+
+// Undo/redo
+copy.Undo(); // Damage = 100
+copy.Undo(); // Damage = original
+copy.Redo(); // Damage = 100
+```
+
+---
+
+## Collection operations
+
+### Adding items
+
+```csharp
+var copy = new WorkingCopy<WeaponDefinition>(weapons);
+
+// Add new item
+var newWeapon = new WeaponDefinition { Id = "weapon_new" };
+copy.Add(newWeapon);
+
+// Item is tracked
+copy.IsDirty; // true
+copy.AddedItems.Contains(newWeapon); // true
+```
+
+### Removing items
+
+```csharp
+// Remove item
+copy.Remove(weaponToDelete);
+
+// Item is marked for deletion
+copy.RemovedItems.Contains(weaponToDelete); // true
+
+// On save, item is deleted from source
+```
+
+### Reordering
+
+```csharp
+// Move item
+copy.Move(weapon, newIndex);
+
+// Reorder operations are tracked
+```
+
+---
+
+## Nested objects
+
+Working copies handle nested objects:
+
+```csharp
+public class WeaponDefinition : Definition
+{
+    public DamageInfo Damage { get; set; }
+}
+
+var copy = new WorkingCopy<WeaponDefinition>(weapon);
+
+// Nested edits tracked
+copy.Current.Damage.BaseDamage = 50;
+copy.Current.Damage.HeadshotMultiplier = 2.0f;
+
+// All changes saved together
+copy.Save();
+```
+
+---
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Create on open" icon="folder-open">
+    Create working copy when opening editor
+  </Card>
+  <Card title="Save explicitly" icon="floppy-disk">
+    Only save on user action, not automatically
+  </Card>
+  <Card title="Prompt on close" icon="door-closed">
+    Warn about unsaved changes before closing
+  </Card>
+  <Card title="Validate before save" icon="shield">
+    Don't allow saving invalid data
+  </Card>
+</CardGroup>
+
+---
+
+## Example: Editor integration
+
+```csharp
+public class WeaponEditor : WorkbenchApp
+{
+    private WorkingCopy<WeaponDefinition> _copy;
+
+    protected override void OnLoad()
+    {
+        _copy = new WorkingCopy<WeaponDefinition>(
+            Definitions.GetAll<WeaponDefinition>()
+        );
+    }
+
+    protected override bool OnCanSave()
+    {
+        return _copy.IsDirty && !_copy.HasErrors;
+    }
+
+    protected override void OnSave()
+    {
+        _copy.Save();
+    }
+
+    protected override void OnClose()
+    {
+        if (_copy.IsDirty)
+        {
+            var result = ShowConfirmDialog("Save changes?");
+            if (result == DialogResult.Yes)
+                _copy.Save();
+            else if (result == DialogResult.Cancel)
+                return; // Don't close
+        }
+
+        base.OnClose();
+    }
+}
+```
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Validation" icon="shield" href="/editor/workbench/validation">
+    Validating working copy data
+  </Card>
+  <Card title="Undo/Redo" icon="rotate-left" href="/editor/workbench/undo-redo">
+    History management
+  </Card>
+</CardGroup>

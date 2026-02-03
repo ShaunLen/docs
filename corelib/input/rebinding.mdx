@@ -1,0 +1,379 @@
+---
+title: "Input Rebinding"
+icon: "keyboard"
+description: "Implementing player-customisable controls"
+---
+
+<Info>
+This page covers how to implement control rebinding, allowing players to customise their input mappings.
+</Info>
+
+---
+
+## Rebinding overview
+
+The Enhanced Input system supports runtime rebinding:
+
+<CardGroup cols={2}>
+  <Card title="Per-action rebinding" icon="bolt">
+    Players can change bindings for individual actions
+  </Card>
+  <Card title="Persistent storage" icon="floppy-disk">
+    Rebindings are saved and restored automatically
+  </Card>
+  <Card title="Default restoration" icon="rotate-left">
+    Players can reset to default bindings
+  </Card>
+  <Card title="Conflict detection" icon="triangle-exclamation">
+    System warns about binding conflicts
+  </Card>
+</CardGroup>
+
+---
+
+## Starting a rebind
+
+<Steps>
+  <Step title="Enter rebind mode">
+    ```csharp
+    // Start listening for new input
+    InputSystem.StartRebind("jump", OnRebindComplete, OnRebindCancelled);
+    ```
+  </Step>
+
+  <Step title="Show UI feedback">
+    ```csharp
+    private void ShowRebindPrompt(string actionId)
+    {
+        _rebindPrompt.Text = "Press any key...";
+        _rebindPrompt.Visible = true;
+    }
+    ```
+  </Step>
+
+  <Step title="Handle completion">
+    ```csharp
+    private void OnRebindComplete(RebindResult result)
+    {
+        _rebindPrompt.Visible = false;
+
+        if (result.Success)
+        {
+            UpdateBindingDisplay(result.ActionId, result.NewBinding);
+        }
+    }
+
+    private void OnRebindCancelled()
+    {
+        _rebindPrompt.Visible = false;
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Rebind options
+
+Configure rebinding behaviour with options:
+
+```csharp
+var options = new RebindOptions
+{
+    // Filter allowed inputs
+    AllowKeyboard = true,
+    AllowMouse = true,
+    AllowGamepad = true,
+
+    // Keys that cancel the rebind
+    CancelKeys = new[] { "Escape" },
+
+    // Keys that cannot be bound
+    ExcludedKeys = new[] { "Escape", "F1", "F2" },
+
+    // Timeout
+    Timeout = 10f
+};
+
+InputSystem.StartRebind("jump", options, OnComplete, OnCancelled);
+```
+
+### Option reference
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `AllowKeyboard` | Accept keyboard input | `true` |
+| `AllowMouse` | Accept mouse input | `true` |
+| `AllowGamepad` | Accept gamepad input | `true` |
+| `CancelKeys` | Keys that cancel rebind | `["Escape"]` |
+| `ExcludedKeys` | Keys that cannot be bound | `[]` |
+| `Timeout` | Seconds before auto-cancel | `null` |
+
+---
+
+## Handling conflicts
+
+When a rebind would create a conflict:
+
+```csharp
+InputSystem.StartRebind("jump", OnComplete, OnCancelled, OnConflict);
+
+private void OnConflict(RebindConflict conflict)
+{
+    // conflict.ExistingAction - the action already using this key
+    // conflict.NewAction - the action being rebound
+    // conflict.Binding - the conflicting binding
+
+    ShowConflictDialog(
+        $"'{conflict.Binding.DisplayName}' is already bound to '{conflict.ExistingAction}'.",
+        onAccept: () => InputSystem.ResolveConflict(conflict, ConflictResolution.Replace),
+        onCancel: () => InputSystem.ResolveConflict(conflict, ConflictResolution.Cancel)
+    );
+}
+```
+
+### Conflict resolutions
+
+| Resolution | Behaviour |
+|------------|-----------|
+| `Replace` | Remove old binding, apply new one |
+| `Add` | Keep both bindings |
+| `Cancel` | Cancel the rebind operation |
+
+---
+
+## Saving and loading
+
+Bindings are managed automatically, but you can control persistence:
+
+<Tabs>
+  <Tab title="Automatic">
+    ```csharp
+    // Bindings auto-save on change and load on startup
+    // No additional code needed
+    ```
+  </Tab>
+  <Tab title="Manual">
+    ```csharp
+    // Force save current bindings
+    InputSystem.SaveBindings();
+
+    // Force reload bindings from storage
+    InputSystem.LoadBindings();
+
+    // Export bindings as JSON
+    string json = InputSystem.ExportBindings();
+
+    // Import bindings from JSON
+    InputSystem.ImportBindings(json);
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Resetting bindings
+
+```csharp
+// Reset single action to default
+InputSystem.ResetBinding("jump");
+
+// Reset all bindings to defaults
+InputSystem.ResetAllBindings();
+
+// Reset all bindings for a context
+InputSystem.ResetContextBindings("gameplay");
+```
+
+<Note>
+Resetting bindings also saves the change automatically.
+</Note>
+
+---
+
+## Building a rebind UI
+
+### Complete example
+
+```csharp
+public class RebindMenuItem : Panel
+{
+    private string _actionId;
+    private Label _actionLabel;
+    private Label _bindingLabel;
+    private Button _rebindButton;
+    private Button _resetButton;
+
+    public void Setup(string actionId)
+    {
+        _actionId = actionId;
+
+        var info = InputSystem.GetActionInfo(actionId);
+        _actionLabel.Text = info.DisplayName;
+
+        UpdateBindingDisplay();
+    }
+
+    private void UpdateBindingDisplay()
+    {
+        var binding = InputSystem.GetPrimaryBinding(_actionId);
+        _bindingLabel.Text = binding?.DisplayName ?? "Unbound";
+    }
+
+    private void OnRebindClicked()
+    {
+        _bindingLabel.Text = "Press any key...";
+        _rebindButton.Disabled = true;
+
+        InputSystem.StartRebind(_actionId, OnRebindComplete, OnRebindCancelled);
+    }
+
+    private void OnRebindComplete(RebindResult result)
+    {
+        _rebindButton.Disabled = false;
+        UpdateBindingDisplay();
+    }
+
+    private void OnRebindCancelled()
+    {
+        _rebindButton.Disabled = false;
+        UpdateBindingDisplay();
+    }
+
+    private void OnResetClicked()
+    {
+        InputSystem.ResetBinding(_actionId);
+        UpdateBindingDisplay();
+    }
+}
+```
+
+### Settings menu structure
+
+```csharp
+public class ControlsSettingsPanel : Panel
+{
+    protected override void OnBuild()
+    {
+        // Get all rebindable actions
+        var actions = InputSystem.GetRebindableActions();
+
+        // Group by category
+        var groups = actions.GroupBy(a => a.Category);
+
+        foreach (var group in groups)
+        {
+            AddHeader(group.Key);
+
+            foreach (var action in group)
+            {
+                var item = new RebindMenuItem();
+                item.Setup(action.Id);
+                Add(item);
+            }
+        }
+
+        // Add reset all button
+        var resetAll = new Button("Reset All to Defaults");
+        resetAll.OnClick += () =>
+        {
+            InputSystem.ResetAllBindings();
+            Rebuild();
+        };
+        Add(resetAll);
+    }
+}
+```
+
+---
+
+## Device-specific bindings
+
+Handle multiple input devices:
+
+```csharp
+// Get binding for specific device
+var keyboardBinding = InputSystem.GetBinding("jump", InputDevice.Keyboard);
+var gamepadBinding = InputSystem.GetBinding("jump", InputDevice.Gamepad);
+
+// Rebind for specific device only
+var options = new RebindOptions
+{
+    AllowKeyboard = true,
+    AllowMouse = false,
+    AllowGamepad = false
+};
+
+InputSystem.StartRebind("jump", options, OnComplete, OnCancelled);
+```
+
+---
+
+## Accessibility considerations
+
+<CardGroup cols={2}>
+  <Card title="Multiple bindings" icon="layer-group">
+    Allow multiple bindings per action for accessibility
+
+    ```csharp
+    InputSystem.AddBinding("jump", newBinding);
+    // Don't replace, add alongside existing
+    ```
+  </Card>
+  <Card title="Hold vs toggle" icon="toggle-on">
+    Support toggle alternatives for hold actions
+
+    ```csharp
+    var action = InputSystem.GetActionInfo("aim");
+    action.ToggleMode = toggleEnabled;
+    ```
+  </Card>
+</CardGroup>
+
+---
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Provide visual feedback" icon="eye">
+    Always show what's happening during rebind:
+    - Current binding
+    - "Press any key" prompt
+    - Conflict warnings
+    - Success confirmation
+  </Accordion>
+
+  <Accordion title="Allow escape" icon="door-open">
+    Players should always be able to cancel:
+    - Escape key cancels by default
+    - Include a cancel button
+    - Timeout as fallback
+  </Accordion>
+
+  <Accordion title="Protect essential bindings" icon="shield">
+    Some bindings shouldn't be rebindable:
+    - Menu/Escape
+    - Screenshot keys
+    - System functions
+  </Accordion>
+
+  <Accordion title="Show device-appropriate hints" icon="gamepad">
+    Display the right icons:
+    - Keyboard hints for keyboard users
+    - Gamepad hints for controller users
+    - Update hints on device switch
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Input Concepts" icon="lightbulb" href="/corelib/input/concepts">
+    Understanding bindings and contexts
+  </Card>
+  <Card title="Input Editor" icon="window" href="/editor/tools/input-editor">
+    Authoring default bindings
+  </Card>
+</CardGroup>

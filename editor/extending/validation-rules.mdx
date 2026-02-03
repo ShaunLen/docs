@@ -1,0 +1,286 @@
+---
+title: "Custom Validation Rules"
+icon: "shield"
+description: "Adding custom validation to Workbench applications"
+---
+
+<Info>
+Create custom validation rules to catch domain-specific errors at authoring time.
+</Info>
+
+---
+
+## Validation interface
+
+```csharp
+public interface IValidator<T>
+{
+    void Validate(T target, ValidationContext context);
+}
+```
+
+---
+
+## Creating a validator
+
+```csharp
+public class WeaponBalanceValidator : IValidator<WeaponDefinition>
+{
+    public void Validate(WeaponDefinition weapon, ValidationContext context)
+    {
+        // Check DPS balance
+        var dps = weapon.Damage * weapon.FireRate;
+
+        if (dps > 200)
+        {
+            context.AddWarning(
+                $"High DPS ({dps:F0}) - review for balance",
+                nameof(weapon.Damage)
+            );
+        }
+
+        // Check magazine efficiency
+        var magazineDamage = weapon.Damage * weapon.MagazineSize;
+        if (magazineDamage < 100)
+        {
+            context.AddWarning(
+                "Low magazine damage - may feel weak",
+                nameof(weapon.MagazineSize)
+            );
+        }
+    }
+}
+```
+
+---
+
+## Registering validators
+
+### In Workbench app
+
+```csharp
+public class WeaponEditor : WorkbenchApp
+{
+    protected override void OnLoad()
+    {
+        Validation.Register<WeaponDefinition>(new WeaponBalanceValidator());
+        Validation.Register<WeaponDefinition>(new AssetPathValidator());
+    }
+}
+```
+
+### Globally
+
+```csharp
+[Validator(typeof(WeaponDefinition))]
+public class WeaponBalanceValidator : IValidator<WeaponDefinition>
+{
+    // Automatically registered
+}
+```
+
+---
+
+## Validation context
+
+```csharp
+public class ValidationContext
+{
+    // Add messages
+    public void AddError(string message, string property = null);
+    public void AddWarning(string message, string property = null);
+    public void AddInfo(string message, string property = null);
+
+    // Add with suggestion
+    public void AddError(string message, string property, string suggestion);
+
+    // Access other definitions
+    public IEnumerable<T> GetAll<T>() where T : Definition;
+    public T Get<T>(string id) where T : Definition;
+}
+```
+
+---
+
+## Common validation patterns
+
+### Required references
+
+```csharp
+public class ReferenceValidator : IValidator<WeaponDefinition>
+{
+    public void Validate(WeaponDefinition weapon, ValidationContext context)
+    {
+        // Validate ammo reference exists
+        if (!string.IsNullOrEmpty(weapon.AmmoTypeId))
+        {
+            var ammo = context.Get<AmmoDefinition>(weapon.AmmoTypeId);
+            if (ammo == null)
+            {
+                context.AddError(
+                    $"Ammo type '{weapon.AmmoTypeId}' not found",
+                    nameof(weapon.AmmoTypeId)
+                );
+            }
+        }
+    }
+}
+```
+
+### Asset existence
+
+```csharp
+public class AssetValidator : IValidator<WeaponDefinition>
+{
+    public void Validate(WeaponDefinition weapon, ValidationContext context)
+    {
+        if (!string.IsNullOrEmpty(weapon.ModelPath))
+        {
+            if (!FileSystem.Mounted.FileExists(weapon.ModelPath))
+            {
+                context.AddError(
+                    $"Model not found: {weapon.ModelPath}",
+                    nameof(weapon.ModelPath)
+                );
+            }
+        }
+    }
+}
+```
+
+### Cross-reference validation
+
+```csharp
+public class RecipeValidator : IValidator<RecipeDefinition>
+{
+    public void Validate(RecipeDefinition recipe, ValidationContext context)
+    {
+        var items = context.GetAll<ItemDefinition>().ToList();
+
+        // Check output exists
+        if (!items.Any(i => i.Id == recipe.OutputItemId))
+        {
+            context.AddError(
+                $"Output item '{recipe.OutputItemId}' not found",
+                nameof(recipe.OutputItemId)
+            );
+        }
+
+        // Check ingredients exist
+        foreach (var ingredient in recipe.Ingredients)
+        {
+            if (!items.Any(i => i.Id == ingredient.ItemId))
+            {
+                context.AddError(
+                    $"Ingredient '{ingredient.ItemId}' not found"
+                );
+            }
+        }
+    }
+}
+```
+
+### Unique constraints
+
+```csharp
+public class UniqueNameValidator : IValidator<ItemDefinition>
+{
+    public void Validate(ItemDefinition item, ValidationContext context)
+    {
+        var allItems = context.GetAll<ItemDefinition>();
+        var duplicates = allItems
+            .Where(i => i.Id != item.Id)
+            .Where(i => i.DisplayName == item.DisplayName);
+
+        if (duplicates.Any())
+        {
+            context.AddWarning(
+                $"Display name '{item.DisplayName}' is used by other items",
+                nameof(item.DisplayName)
+            );
+        }
+    }
+}
+```
+
+---
+
+## Conditional validation
+
+```csharp
+public class HoldInteractionValidator : IValidator<InteractionDefinition>
+{
+    public void Validate(InteractionDefinition def, ValidationContext context)
+    {
+        // Only validate hold interactions
+        if (def.Type != InteractionType.Hold)
+            return;
+
+        if (def.HoldDuration <= 0)
+        {
+            context.AddError(
+                "Hold duration must be greater than 0",
+                nameof(def.HoldDuration)
+            );
+        }
+
+        if (def.HoldDuration > 30)
+        {
+            context.AddWarning(
+                "Very long hold duration - consider if intended",
+                nameof(def.HoldDuration)
+            );
+        }
+    }
+}
+```
+
+---
+
+## Validation with fixes
+
+```csharp
+public void Validate(WeaponDefinition weapon, ValidationContext context)
+{
+    if (string.IsNullOrEmpty(weapon.Id))
+    {
+        context.AddError(
+            "ID is required",
+            nameof(weapon.Id),
+            suggestion: $"Suggested: {GenerateId(weapon.DisplayName)}"
+        );
+    }
+}
+```
+
+---
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Be specific" icon="bullseye">
+    Target the specific property with the issue
+  </Card>
+  <Card title="Explain why" icon="comment">
+    Messages should explain the problem
+  </Card>
+  <Card title="Suggest fixes" icon="lightbulb">
+    Provide actionable suggestions
+  </Card>
+  <Card title="Use warnings wisely" icon="triangle-exclamation">
+    Reserve warnings for real concerns
+  </Card>
+</CardGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Workbench Validation" icon="shield" href="/editor/workbench/validation">
+    How validation works in Workbench
+  </Card>
+  <Card title="Definition Validation" icon="file-code" href="/corelib/definitions/validation">
+    Data validation patterns
+  </Card>
+</CardGroup>

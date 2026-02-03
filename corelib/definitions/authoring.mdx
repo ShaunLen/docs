@@ -1,0 +1,371 @@
+---
+title: "Authoring Definitions"
+icon: "pen"
+description: "Creating definition types and authoring data"
+---
+
+<Info>
+This page covers how to create definition types and author definition data.
+</Info>
+
+---
+
+## Creating definition types
+
+### Basic definition
+
+```csharp
+public class ItemDefinition : Definition
+{
+    public string DisplayName { get; set; }
+    public string Description { get; set; }
+    public string Icon { get; set; }
+    public int MaxStack { get; set; } = 1;
+    public float Weight { get; set; }
+}
+```
+
+### With validation attributes
+
+```csharp
+public class WeaponDefinition : Definition
+{
+    [Required]
+    [Display(Name = "Display Name")]
+    public string DisplayName { get; set; }
+
+    [Range(1, 500)]
+    [Display(Name = "Base Damage")]
+    public float Damage { get; set; }
+
+    [Range(0.1f, 10f)]
+    public float FireRate { get; set; }
+
+    [Range(1, 200)]
+    public int MagazineSize { get; set; }
+
+    [AssetPath("models/*.vmdl")]
+    public string ModelPath { get; set; }
+}
+```
+
+---
+
+## Property types
+
+### Primitive types
+
+```csharp
+public class ExampleDefinition : Definition
+{
+    public string Text { get; set; }
+    public int Count { get; set; }
+    public float Value { get; set; }
+    public bool Enabled { get; set; }
+}
+```
+
+### Enums
+
+```csharp
+public enum ItemRarity
+{
+    Common,
+    Uncommon,
+    Rare,
+    Epic,
+    Legendary
+}
+
+public class ItemDefinition : Definition
+{
+    public ItemRarity Rarity { get; set; }
+}
+```
+
+### Collections
+
+```csharp
+public class LootTableDefinition : Definition
+{
+    public List<LootEntry> Entries { get; set; } = new();
+}
+
+public class LootEntry
+{
+    [Reference(typeof(ItemDefinition))]
+    public string ItemId { get; set; }
+
+    [Range(0, 100)]
+    public float DropChance { get; set; }
+
+    [Range(1, 99)]
+    public int MinCount { get; set; }
+
+    [Range(1, 99)]
+    public int MaxCount { get; set; }
+}
+```
+
+### Nested objects
+
+```csharp
+public class WeaponDefinition : Definition
+{
+    public string DisplayName { get; set; }
+    public DamageInfo Damage { get; set; }
+    public RecoilSettings Recoil { get; set; }
+}
+
+public class DamageInfo
+{
+    public float BaseDamage { get; set; }
+    public float HeadshotMultiplier { get; set; }
+    public DamageType Type { get; set; }
+}
+
+public class RecoilSettings
+{
+    public float Vertical { get; set; }
+    public float Horizontal { get; set; }
+    public float Recovery { get; set; }
+}
+```
+
+---
+
+## References
+
+### Single reference
+
+```csharp
+public class WeaponDefinition : Definition
+{
+    [Reference(typeof(AmmoDefinition))]
+    public string AmmoTypeId { get; set; }
+
+    // Helper property to get the referenced definition
+    public AmmoDefinition AmmoType =>
+        Definitions.Get<AmmoDefinition>(AmmoTypeId);
+}
+```
+
+### Multiple references
+
+```csharp
+public class RecipeDefinition : Definition
+{
+    [Reference(typeof(ItemDefinition))]
+    public string OutputItemId { get; set; }
+
+    public List<RecipeIngredient> Ingredients { get; set; }
+}
+
+public class RecipeIngredient
+{
+    [Reference(typeof(ItemDefinition))]
+    public string ItemId { get; set; }
+
+    public int Count { get; set; }
+}
+```
+
+---
+
+## Inheritance
+
+### Base definitions
+
+```csharp
+// Base type
+public abstract class WeaponDefinition : Definition
+{
+    public string DisplayName { get; set; }
+    public float Damage { get; set; }
+}
+
+// Derived types
+public class GunDefinition : WeaponDefinition
+{
+    public int MagazineSize { get; set; }
+    public float FireRate { get; set; }
+}
+
+public class MeleeWeaponDefinition : WeaponDefinition
+{
+    public float SwingSpeed { get; set; }
+    public float Range { get; set; }
+}
+```
+
+### Data inheritance
+
+```json
+// base_pistol.json
+{
+    "id": "weapon_pistol_base",
+    "isAbstract": true,
+    "damage": 25,
+    "magazineSize": 12
+}
+
+// pistol_variant.json
+{
+    "id": "weapon_pistol_silenced",
+    "inherits": "weapon_pistol_base",
+    "damage": 20,  // Override
+    // magazineSize inherited as 12
+}
+```
+
+---
+
+## Default values
+
+```csharp
+public class ItemDefinition : Definition
+{
+    // Default in property
+    public int MaxStack { get; set; } = 1;
+
+    // Default via attribute
+    [DefaultValue(1.0f)]
+    public float Weight { get; set; }
+
+    // Computed default
+    public string Icon { get; set; } = "icons/default_item.png";
+}
+```
+
+---
+
+## Categories and organization
+
+### Using categories
+
+```csharp
+[DefinitionCategory("Weapons/Rifles")]
+public class RifleDefinition : WeaponDefinition
+{
+    // ...
+}
+
+[DefinitionCategory("Weapons/Pistols")]
+public class PistolDefinition : WeaponDefinition
+{
+    // ...
+}
+```
+
+### File organization
+
+```
+definitions/
+├── weapons/
+│   ├── pistols/
+│   │   ├── pistol_basic.json
+│   │   └── pistol_silenced.json
+│   └── rifles/
+│       ├── rifle_assault.json
+│       └── rifle_sniper.json
+├── items/
+│   ├── consumables/
+│   └── equipment/
+└── npcs/
+```
+
+---
+
+## Editor integration
+
+### Display attributes
+
+```csharp
+public class WeaponDefinition : Definition
+{
+    [Display(Name = "Weapon Name", Description = "Name shown in UI")]
+    public string DisplayName { get; set; }
+
+    [Display(GroupName = "Combat Stats")]
+    public float Damage { get; set; }
+
+    [Display(GroupName = "Combat Stats")]
+    public float FireRate { get; set; }
+
+    [Display(GroupName = "Visual")]
+    public string ModelPath { get; set; }
+
+    [Display(GroupName = "Visual")]
+    public string Icon { get; set; }
+}
+```
+
+### Custom editors
+
+```csharp
+[CustomEditor(typeof(CurveEditor))]
+public AnimationCurve DamageFalloff { get; set; }
+
+[CustomEditor(typeof(ColorPicker))]
+public Color TrailColor { get; set; }
+```
+
+---
+
+## Loading definitions
+
+### Automatic loading
+
+```csharp
+// All definitions loaded at startup
+// Access via registry
+var pistol = Definitions.Get<WeaponDefinition>("weapon_pistol");
+```
+
+### Querying
+
+```csharp
+// Get all weapons
+var allWeapons = Definitions.GetAll<WeaponDefinition>();
+
+// Filter
+var rifles = Definitions.GetAll<WeaponDefinition>()
+    .Where(w => w.Category == WeaponCategory.Rifle);
+
+// Find by criteria
+var bestWeapon = Definitions.GetAll<WeaponDefinition>()
+    .OrderByDescending(w => w.Damage)
+    .First();
+```
+
+---
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Use attributes" icon="tag">
+    Add validation and display attributes for better tooling
+  </Card>
+  <Card title="Organize files" icon="folder">
+    Use folders to group related definitions
+  </Card>
+  <Card title="Document properties" icon="comment">
+    Use Display descriptions for clarity
+  </Card>
+  <Card title="Validate references" icon="link">
+    Use Reference attribute for type-safe links
+  </Card>
+</CardGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Stable IDs" icon="fingerprint" href="/corelib/definitions/stable-ids">
+    Understanding definition IDs
+  </Card>
+  <Card title="Validation" icon="shield" href="/corelib/definitions/validation">
+    Validating definition data
+  </Card>
+</CardGroup>

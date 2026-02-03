@@ -1,0 +1,280 @@
+---
+title: "Game Events Integration"
+icon: "bolt"
+description: "Using Facepunch GameEvents with CoreLib"
+---
+
+<Info>
+This page documents how Northbound integrates with Facepunch's GameEvents library.
+</Info>
+
+---
+
+## What is GameEvents?
+
+GameEvents is a Facepunch library for event-driven game programming. CoreLib integrates with it while adding additional patterns.
+
+<CardGroup cols={2}>
+  <Card title="Event dispatching" icon="broadcast-tower">
+    Fire events to multiple listeners
+  </Card>
+  <Card title="Type safety" icon="shield">
+    Strongly typed event data
+  </Card>
+  <Card title="Decoupling" icon="link-slash">
+    Systems don't need direct references
+  </Card>
+  <Card title="Network support" icon="globe">
+    Events can cross server/client boundary
+  </Card>
+</CardGroup>
+
+---
+
+## CoreLib vs GameEvents
+
+| Feature | GameEvents | CoreLib Events |
+|---------|------------|----------------|
+| **Purpose** | General event system | Game-specific patterns |
+| **Scope** | Standalone | Integrated with CoreLib |
+| **Filtering** | Basic | Rich filtering options |
+| **State** | Events only | Events + shared state |
+
+<Note>
+CoreLib's event system is built on top of GameEvents concepts but adds patterns specific to our architecture.
+</Note>
+
+---
+
+## Basic usage
+
+### Defining events
+
+```csharp
+// Using GameEvents style
+public class PlayerKilledEvent : GameEvent
+{
+    public Player Victim { get; set; }
+    public Player Killer { get; set; }
+    public DamageInfo DamageInfo { get; set; }
+}
+```
+
+### Dispatching
+
+```csharp
+// Fire an event
+GameEvents.Post(new PlayerKilledEvent
+{
+    Victim = victim,
+    Killer = killer,
+    DamageInfo = damageInfo
+});
+```
+
+### Subscribing
+
+```csharp
+// Subscribe to events
+GameEvents.Subscribe<PlayerKilledEvent>(OnPlayerKilled);
+
+private void OnPlayerKilled(PlayerKilledEvent e)
+{
+    // Handle event
+}
+
+// Unsubscribe
+GameEvents.Unsubscribe<PlayerKilledEvent>(OnPlayerKilled);
+```
+
+---
+
+## Integration with CoreLib
+
+### Bridging to CoreLib Events
+
+```csharp
+// Forward GameEvents to CoreLib's event system
+GameEvents.Subscribe<PlayerKilledEvent>(e =>
+{
+    Events.Dispatch(new CoreLib.PlayerKilledEvent
+    {
+        Victim = e.Victim,
+        Killer = e.Killer
+    });
+});
+```
+
+### Recommended pattern
+
+Use CoreLib's event system for new code:
+
+```csharp
+// Preferred: CoreLib events
+Events.On<PlayerKilledEvent>(OnPlayerKilled);
+
+// Legacy: GameEvents (for compatibility)
+GameEvents.Subscribe<LegacyEvent>(OnLegacy);
+```
+
+---
+
+## Network events
+
+### Server to clients
+
+```csharp
+// Server-side
+[ServerOnly]
+public void OnPlayerKilled(Player victim, Player killer)
+{
+    // Broadcast to all clients
+    GameEvents.PostToClients(new PlayerKilledEvent
+    {
+        VictimId = victim.NetworkId,
+        KillerId = killer.NetworkId
+    });
+}
+
+// Client-side handling
+GameEvents.Subscribe<PlayerKilledEvent>(e =>
+{
+    ShowKillFeed(e.VictimId, e.KillerId);
+});
+```
+
+### Client to server
+
+```csharp
+// Client requests
+GameEvents.PostToServer(new ActionRequest
+{
+    ActionType = ActionType.Interact,
+    TargetId = target.NetworkId
+});
+
+// Server handles
+[ServerOnly]
+GameEvents.Subscribe<ActionRequest>((e, sender) =>
+{
+    ValidateAndProcess(e, sender);
+});
+```
+
+---
+
+## Common patterns
+
+### Event with response
+
+```csharp
+public class CanPickupEvent : GameEvent
+{
+    public Item Item { get; set; }
+    public Player Player { get; set; }
+    public bool Allowed { get; set; } = true;
+    public string DenyReason { get; set; }
+}
+
+// Handler can modify
+GameEvents.Subscribe<CanPickupEvent>(e =>
+{
+    if (e.Player.Inventory.IsFull)
+    {
+        e.Allowed = false;
+        e.DenyReason = "Inventory full";
+    }
+});
+
+// Dispatcher checks result
+var canPickup = new CanPickupEvent { Item = item, Player = player };
+GameEvents.Post(canPickup);
+
+if (canPickup.Allowed)
+{
+    DoPickup();
+}
+```
+
+### Ordered handlers
+
+```csharp
+// Priority ordering
+[EventPriority(100)]  // Runs first
+GameEvents.Subscribe<DamageEvent>(ModifyDamage);
+
+[EventPriority(0)]    // Runs after
+GameEvents.Subscribe<DamageEvent>(ApplyDamage);
+```
+
+---
+
+## Gotchas
+
+<Warning>
+Common issues when using GameEvents.
+</Warning>
+
+<AccordionGroup>
+  <Accordion title="Forgetting to unsubscribe" icon="memory">
+    **Problem:** Memory leaks from lingering subscriptions
+
+    **Solution:** Always unsubscribe in OnDestroy:
+    ```csharp
+    protected override void OnDestroy()
+    {
+        GameEvents.Unsubscribe<MyEvent>(OnMyEvent);
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Modifying events after dispatch" icon="pen">
+    **Problem:** Event data changed by early handlers
+
+    **Solution:** Make event data immutable or use patterns that expect modification
+  </Accordion>
+
+  <Accordion title="Network serialization" icon="globe">
+    **Problem:** Complex objects don't serialize over network
+
+    **Solution:** Use IDs instead of direct references:
+    ```csharp
+    // Bad: Won't serialize
+    public Player Victim { get; set; }
+
+    // Good: Serializes correctly
+    public int VictimNetworkId { get; set; }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Migration guide
+
+When migrating from raw GameEvents to CoreLib patterns:
+
+<Steps>
+  <Step title="Keep GameEvents for networking">
+    GameEvents handles network transport well
+  </Step>
+  <Step title="Use CoreLib Events locally">
+    For same-machine communication, prefer CoreLib
+  </Step>
+  <Step title="Bridge at boundaries">
+    Convert between systems at network boundary
+  </Step>
+</Steps>
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="CoreLib Events" icon="bolt" href="/corelib/state/events">
+    CoreLib's event system
+  </Card>
+  <Card title="Other Libraries" icon="plug" href="/integrations/other-libraries">
+    Other third-party integrations
+  </Card>
+</CardGroup>

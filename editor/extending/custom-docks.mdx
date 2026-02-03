@@ -1,0 +1,293 @@
+---
+title: "Custom Docks"
+icon: "table-columns"
+description: "Creating custom panels for Workbench applications"
+---
+
+<Info>
+Docks are the building blocks of Workbench UIs. Create custom docks for specialized functionality.
+</Info>
+
+---
+
+## Basic dock
+
+```csharp
+public class MyCustomDock : Dock
+{
+    public override string Title => "My Dock";
+    public override string Icon => "star";
+
+    protected override void OnBuild()
+    {
+        // Build your UI here
+        Add.Label("Hello from my dock!");
+    }
+}
+```
+
+---
+
+## Using in an app
+
+```csharp
+public class MyEditor : WorkbenchApp
+{
+    protected override void BuildUI()
+    {
+        AddDock<MyCustomDock>("Custom", DockPosition.Left);
+    }
+}
+```
+
+---
+
+## Data binding
+
+### Bind to selection
+
+```csharp
+public class PreviewDock : Dock
+{
+    private object _target;
+    private ModelPreview _preview;
+
+    public void Bind(Func<object> getter)
+    {
+        OnUpdate += () =>
+        {
+            var newTarget = getter();
+            if (newTarget != _target)
+            {
+                _target = newTarget;
+                Refresh();
+            }
+        };
+    }
+
+    private void Refresh()
+    {
+        if (_target is WeaponDefinition weapon)
+        {
+            _preview.SetModel(weapon.ModelPath);
+        }
+    }
+}
+```
+
+### Bind to collection
+
+```csharp
+public class ListDock<T> : Dock
+{
+    private ListView _list;
+    private IList<T> _items;
+
+    public void Bind(IList<T> items)
+    {
+        _items = items;
+
+        _list.Clear();
+        foreach (var item in items)
+        {
+            _list.Add(CreateItem(item));
+        }
+
+        // Handle changes
+        if (items is INotifyCollectionChanged observable)
+        {
+            observable.CollectionChanged += OnCollectionChanged;
+        }
+    }
+}
+```
+
+---
+
+## Built-in dock types
+
+### HierarchyDock
+
+Tree view for hierarchical data:
+
+```csharp
+var hierarchy = AddDock<HierarchyDock>("Items", DockPosition.Left);
+hierarchy.Bind(_items);
+hierarchy.AllowReorder = true;
+hierarchy.AllowRename = true;
+hierarchy.OnSelectionChanged += OnSelected;
+```
+
+### InspectorDock
+
+Property editor:
+
+```csharp
+var inspector = AddDock<InspectorDock>("Properties", DockPosition.Right);
+inspector.Bind(() => _selectedItem);
+inspector.ReadOnly = false;
+```
+
+### PreviewDock
+
+Visual preview:
+
+```csharp
+var preview = AddDock<PreviewDock>("Preview", DockPosition.Bottom);
+preview.Bind(() => _selectedItem?.AssetPath);
+```
+
+---
+
+## Custom inspector dock
+
+```csharp
+public class WeaponInspectorDock : Dock
+{
+    private WeaponDefinition _weapon;
+    private TextField _nameField;
+    private Slider _damageSlider;
+
+    protected override void OnBuild()
+    {
+        // Name field
+        _nameField = Add.TextField("Name");
+        _nameField.OnChange += (value) =>
+        {
+            if (_weapon != null)
+                _weapon.DisplayName = value;
+        };
+
+        // Damage slider
+        _damageSlider = Add.Slider("Damage", 1, 500);
+        _damageSlider.OnChange += (value) =>
+        {
+            if (_weapon != null)
+                _weapon.Damage = value;
+        };
+    }
+
+    public void SetTarget(WeaponDefinition weapon)
+    {
+        _weapon = weapon;
+
+        if (weapon != null)
+        {
+            _nameField.Value = weapon.DisplayName;
+            _damageSlider.Value = weapon.Damage;
+        }
+    }
+}
+```
+
+---
+
+## Dock toolbar
+
+```csharp
+public class MyDock : Dock
+{
+    protected override void OnBuild()
+    {
+        // Add dock toolbar
+        var toolbar = AddToolbar();
+        toolbar.AddButton("Add", Icons.Plus, OnAdd);
+        toolbar.AddButton("Remove", Icons.Trash, OnRemove);
+        toolbar.AddSeparator();
+        toolbar.AddToggle("Filter", Icons.Filter, OnFilterToggle);
+
+        // Content below toolbar
+        AddContent();
+    }
+}
+```
+
+---
+
+## Context menus
+
+```csharp
+public class HierarchyDock : Dock
+{
+    protected override void OnContextMenu(ContextMenuEvent e)
+    {
+        var menu = new ContextMenu();
+
+        menu.AddOption("New Item", Icons.Plus, CreateItem);
+        menu.AddOption("Duplicate", Icons.Copy, DuplicateItem)
+            .Enabled = _selectedItem != null;
+        menu.AddSeparator();
+        menu.AddOption("Delete", Icons.Trash, DeleteItem)
+            .Enabled = _selectedItem != null;
+
+        menu.Show(e.Position);
+    }
+}
+```
+
+---
+
+## Drag and drop
+
+```csharp
+public class DraggableDock : Dock
+{
+    protected override void OnDragStart(DragEvent e)
+    {
+        if (_selectedItem != null)
+        {
+            e.Data.Set("item", _selectedItem);
+            e.Allowed = true;
+        }
+    }
+
+    protected override void OnDragOver(DragEvent e)
+    {
+        if (e.Data.Has("item"))
+        {
+            e.Allowed = true;
+            ShowDropIndicator(e.Position);
+        }
+    }
+
+    protected override void OnDrop(DragEvent e)
+    {
+        if (e.Data.TryGet("item", out var item))
+        {
+            HandleDrop(item, e.Position);
+        }
+    }
+}
+```
+
+---
+
+## Dock settings
+
+```csharp
+public class MyDock : Dock
+{
+    // Size constraints
+    public override float DefaultWidth => 300;
+    public override float MinWidth => 200;
+    public override float MaxWidth => 500;
+
+    // Behavior
+    public override bool CanClose => true;
+    public override bool CanFloat => true;
+    public override bool CanMaximize => true;
+}
+```
+
+---
+
+## Related pages
+
+<CardGroup cols={2}>
+  <Card title="Creating Apps" icon="plus" href="/editor/extending/creating-a-workbench-app">
+    Using docks in applications
+  </Card>
+  <Card title="Workbench Architecture" icon="diagram-project" href="/editor/workbench/architecture">
+    How docks fit in Workbench
+  </Card>
+</CardGroup>

@@ -1,0 +1,379 @@
+---
+title: "Using CoreLib"
+icon: "download"
+description: "How to add and use CoreLib in your game project"
+---
+
+<Info>
+This guide covers setting up CoreLib in a new or existing game project.
+</Info>
+
+---
+
+## Prerequisites
+
+Before using CoreLib, ensure you have:
+
+<CardGroup cols={2}>
+  <Card title="s&box installed" icon="box">
+    A working s&box development environment
+  </Card>
+  <Card title="Project created" icon="folder">
+    A game project to add CoreLib to
+  </Card>
+</CardGroup>
+
+---
+
+## Adding CoreLib
+
+<Steps>
+  <Step title="Add the dependency">
+    Add CoreLib as a project reference in your game project.
+
+    CoreLib should be available as a shared library within Northbound's project structure.
+  </Step>
+
+  <Step title="Set up assembly references">
+    Ensure your assembly definitions reference CoreLib:
+
+    **Game.Runtime.asmdef:**
+    ```json
+    {
+      "name": "Game.Runtime",
+      "references": [
+        "CoreLib.Runtime"
+      ]
+    }
+    ```
+
+    **Game.Editor.asmdef:**
+    ```json
+    {
+      "name": "Game.Editor",
+      "references": [
+        "CoreLib.Runtime",
+        "CoreLib.Editor",
+        "Game.Runtime"
+      ]
+    }
+    ```
+  </Step>
+
+  <Step title="Verify the setup">
+    Build your project to ensure references are working.
+  </Step>
+</Steps>
+
+---
+
+## Project structure
+
+A typical game project using CoreLib:
+
+```
+MyGame/
+├── code/
+│   ├── Runtime/
+│   │   ├── Game.Runtime.asmdef
+│   │   ├── GameManager.cs
+│   │   └── Systems/
+│   │       ├── WeaponSystem.cs
+│   │       └── PlayerController.cs
+│   └── Editor/
+│       ├── Game.Editor.asmdef
+│       └── Tools/
+│           └── WeaponEditor.cs
+├── definitions/
+│   ├── weapons/
+│   │   ├── pistol.json
+│   │   └── rifle.json
+│   └── items/
+│       └── healthpack.json
+└── assets/
+    └── ...
+```
+
+---
+
+## Initialisation
+
+CoreLib systems initialise automatically, but you can configure them:
+
+```csharp
+public class GameManager : Component
+{
+    protected override void OnStart()
+    {
+        // CoreLib systems are available immediately
+
+        // Configure input contexts
+        InputSystem.SetActiveContext("gameplay");
+
+        // Register for events
+        Events.On<PlayerSpawnedEvent>(OnPlayerSpawned);
+    }
+}
+```
+
+---
+
+## Using CoreLib systems
+
+### Enhanced Input
+
+```csharp
+public class PlayerController : Component
+{
+    protected override void OnUpdate()
+    {
+        // Check input actions
+        if (InputSystem.IsActionPressed("jump"))
+        {
+            Jump();
+        }
+
+        // Get movement input
+        var moveInput = InputSystem.GetAxis2D("move");
+        Move(moveInput);
+    }
+}
+```
+
+<Card title="Input System Docs" icon="gamepad" href="/corelib/input/overview" horizontal />
+
+### Interactions
+
+```csharp
+public class InteractableObject : Component, IInteractable
+{
+    public InteractionDefinition Interaction { get; set; }
+
+    public bool CanInteract(Player player)
+    {
+        return player.IsAlive;
+    }
+
+    public void OnInteract(Player player)
+    {
+        // Handle interaction
+    }
+}
+```
+
+<Card title="Interaction System Docs" icon="hand-pointer" href="/corelib/interactions/overview" horizontal />
+
+### Definitions
+
+```csharp
+public class WeaponSystem : Component
+{
+    public void EquipWeapon(string weaponId)
+    {
+        // Get weapon definition
+        var weaponDef = Definitions.Get<WeaponDefinition>(weaponId);
+
+        // Create weapon instance
+        var weapon = new Weapon(weaponDef);
+        _currentWeapon = weapon;
+    }
+}
+```
+
+<Card title="Definitions Docs" icon="file-code" href="/corelib/definitions/overview" horizontal />
+
+### State & Events
+
+```csharp
+public class ScoreSystem : Component
+{
+    protected override void OnStart()
+    {
+        Events.On<PlayerKilledEvent>(OnPlayerKilled);
+    }
+
+    private void OnPlayerKilled(PlayerKilledEvent e)
+    {
+        AddScore(e.Killer, 100);
+    }
+}
+```
+
+<Card title="State & Events Docs" icon="database" href="/corelib/state/overview" horizontal />
+
+---
+
+## Creating definitions
+
+<Tabs>
+  <Tab title="Define the type">
+    Create a definition class in your runtime code:
+
+    ```csharp
+    public class WeaponDefinition : Definition
+    {
+        public string DisplayName { get; set; }
+        public float Damage { get; set; }
+        public float FireRate { get; set; }
+        public float Range { get; set; }
+        public string ModelPath { get; set; }
+    }
+    ```
+  </Tab>
+  <Tab title="Create data">
+    Author definitions in the editor or JSON:
+
+    ```json
+    {
+      "id": "weapon_pistol",
+      "displayName": "Pistol",
+      "damage": 25,
+      "fireRate": 2.0,
+      "range": 50,
+      "modelPath": "models/weapons/pistol.vmdl"
+    }
+    ```
+  </Tab>
+  <Tab title="Use at runtime">
+    Access definitions by ID:
+
+    ```csharp
+    var pistol = Definitions.Get<WeaponDefinition>("weapon_pistol");
+    Log.Info($"Pistol damage: {pistol.Damage}");
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Editor tooling
+
+<Steps>
+  <Step title="Use built-in editors">
+    CoreLib includes editors for its systems:
+    - Input Editor
+    - Interaction Editor
+    - Definition browsers
+  </Step>
+
+  <Step title="Create custom editors">
+    Build on Workbench for game-specific tools:
+
+    ```csharp
+    public class WeaponEditorApp : WorkbenchApp
+    {
+        public override string Title => "Weapon Editor";
+
+        protected override void BuildUI()
+        {
+            // Custom weapon authoring UI
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+<Card title="Workbench Docs" icon="wrench" href="/editor/workbench/overview" horizontal />
+
+---
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Keep game code thin" icon="feather" color="#16A34A">
+    Let CoreLib systems do the heavy lifting. Game code should compose and configure, not reimplement.
+  </Card>
+  <Card title="Use definitions" icon="file-code" color="#16A34A">
+    Author data in the editor. Don't hardcode values in game code.
+  </Card>
+  <Card title="Follow patterns" icon="clone" color="#16A34A">
+    Match existing patterns in CoreLib systems. Consistency aids understanding.
+  </Card>
+  <Card title="Validate early" icon="shield" color="#16A34A">
+    Use editor validation to catch errors at authoring time.
+  </Card>
+</CardGroup>
+
+---
+
+## Common mistakes
+
+<Warning>
+Avoid these common pitfalls when using CoreLib.
+</Warning>
+
+<AccordionGroup>
+  <Accordion title="Bypassing CoreLib systems" icon="xmark">
+    **Problem:** Implementing your own input handling instead of using Enhanced Input.
+
+    **Solution:** Use CoreLib systems. If they don't meet your needs, extend them or discuss improvements.
+  </Accordion>
+
+  <Accordion title="Hardcoding definition data" icon="xmark">
+    **Problem:** Putting weapon stats directly in code instead of definitions.
+
+    **Solution:** Create definitions for all authorable data. This enables tuning without code changes.
+  </Accordion>
+
+  <Accordion title="Skipping validation" icon="xmark">
+    **Problem:** Not validating definition data, leading to runtime errors.
+
+    **Solution:** Add validation rules that catch errors in the editor.
+  </Accordion>
+
+  <Accordion title="Client-side authority" icon="xmark">
+    **Problem:** Making gameplay decisions on the client.
+
+    **Solution:** Use server-authoritative patterns. Clients predict; servers decide.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Troubleshooting
+
+<Tabs>
+  <Tab title="Missing references">
+    **Symptom:** Can't find CoreLib types
+
+    **Solutions:**
+    - Verify assembly references
+    - Check namespace imports
+    - Rebuild the solution
+  </Tab>
+  <Tab title="Definitions not loading">
+    **Symptom:** `Definitions.Get()` returns null
+
+    **Solutions:**
+    - Check definition file paths
+    - Verify JSON is valid
+    - Ensure definition type is registered
+  </Tab>
+  <Tab title="Editor tools missing">
+    **Symptom:** CoreLib editor tools not appearing
+
+    **Solutions:**
+    - Verify editor assembly references
+    - Check for compilation errors
+    - Restart the editor
+  </Tab>
+</Tabs>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Enhanced Input" icon="gamepad" href="/corelib/input/overview">
+    Learn the input system in depth
+  </Card>
+  <Card title="Interactions" icon="hand-pointer" href="/corelib/interactions/overview">
+    Explore the interaction system
+  </Card>
+  <Card title="Definitions" icon="file-code" href="/corelib/definitions/overview">
+    Master data authoring
+  </Card>
+  <Card title="Workbench" icon="wrench" href="/editor/workbench/overview">
+    Build custom editor tools
+  </Card>
+</CardGroup>
