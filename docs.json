@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Northbound Wiki",
   "colors": {
     "primary": "#16A34A",
     "light": "#07C983",
@@ -17,8 +17,8 @@
             "group": "Getting started",
             "pages": [
               "index",
-              "quickstart",
-              "development"
+              "guides/getting-started/project-setup",
+              "guides/getting-started/core-lib"
             ]
           },
           {
@@ -71,14 +71,14 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "Discord",
+          "href": "https://discord.gg/8dYTXus67e",
+          "icon": "discord"
         },
         {
-          "anchor": "Blog",
+          "anchor": "S&box org",
           "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "icon": "people-group"
         }
       ]
     }
