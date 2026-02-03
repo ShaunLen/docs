@@ -1,0 +1,150 @@
+---
+title: "Performance Philosophy"
+icon: "gauge-high"
+description: "How Northbound approaches performance, optimisation, and trade-offs"
+---
+
+## Purpose
+
+This document describes **how we think about performance**, not a checklist of optimisations.
+
+Performance work is most effective when it is:
+- intentional
+- measured
+- aligned with real constraints
+
+Premature or speculative optimisation often increases complexity without meaningful benefit.
+
+---
+
+## Correctness and clarity first
+
+A system must be:
+1. correct
+2. understandable
+3. observable
+
+…before it is fast.
+
+Optimising unclear or poorly structured code tends to lock in bad designs and makes future changes harder.
+
+---
+
+## Measure before optimising
+
+We do not optimise based on intuition alone.
+
+Before investing in performance work:
+- identify the actual bottleneck
+- confirm it is measurable and repeatable
+- understand its impact on gameplay or tooling
+
+If something is not measurably slow, it is probably not worth optimising yet.
+
+---
+
+## Optimise where it matters
+
+Not all code paths are equal.
+
+We focus performance effort on:
+- hot runtime paths
+- per-frame logic
+- systems that scale with player count or world complexity
+
+Cold paths, editor-only code, and one-off setup costs are rarely worth aggressive optimisation.
+
+---
+
+## Performance as a system concern
+
+Performance is often a consequence of **architecture**, not individual lines of code.
+
+Good performance tends to emerge from:
+- clear ownership of responsibilities
+- predictable data flow
+- minimal hidden work
+- avoiding unnecessary coupling
+
+Well-designed systems are easier to optimise when needed.
+
+---
+
+## Tooling and observability
+
+Performance problems are easier to solve when systems are observable.
+
+Where appropriate, systems should provide:
+- debug visualisation
+- logging hooks
+- instrumentation points
+
+This applies to editor tooling as well as runtime systems.
+
+---
+
+## Memory and allocation awareness
+
+Unnecessary allocation in hot paths should be avoided.
+
+We are mindful of:
+- per-frame allocations
+- large object churn
+- hidden allocations in APIs
+
+However, allocation avoidance should not come at the cost of readability unless profiling demonstrates a real issue.
+
+---
+
+## Server performance is critical
+
+Server performance has a direct impact on:
+- gameplay correctness
+- scalability
+- player experience
+
+Server-side systems should be:
+- predictable
+- authoritative
+- resistant to misuse
+
+Client-side performance issues are often recoverable; server-side issues compound quickly.
+
+---
+
+## Optimisation is iterative
+
+Performance work is rarely “done”.
+
+Optimisation should:
+- be incremental
+- include validation and testing
+- avoid large, risky rewrites unless clearly justified
+
+Each optimisation should be understandable and reversible.
+
+---
+
+## Trade-offs are explicit
+
+Every performance optimisation has a cost.
+
+When making trade-offs, be explicit about:
+- what is being gained
+- what complexity is being introduced
+- what flexibility is being lost
+
+Undocumented trade-offs become future maintenance problems.
+
+---
+
+## Summary
+
+At Northbound, performance is treated as:
+- a design concern
+- a measurement problem
+- an ongoing process
+
+We aim to build systems that are *naturally performant*, and only reach for aggressive optimisation when the data supports it.
+
+If performance work feels urgent or unclear, that’s usually a sign the system needs better structure or observability first.

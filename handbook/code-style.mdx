@@ -1,0 +1,238 @@
+---
+title: "Code Style"
+icon: "code"
+description: "Code style and readability conventions used at Northbound"
+---
+
+## Purpose
+
+These guidelines describe the **expected code style** across Northbound projects.
+
+They are not enforced by analyzers or tooling, but they *are* expectations — especially in shared code such as CoreLib.  
+Consistency and readability matter more than individual preference.
+
+---
+
+## General principles
+
+- Readability comes first
+- Consistency beats personal style
+- Prefer clarity over cleverness
+
+Modern C# features are welcome, as long as they **improve** readability rather than obscure intent.
+
+---
+
+## Naming
+
+### Types
+- Use **PascalCase**
+- Names should be descriptive and unambiguous
+- Avoid vague or generic names
+
+Good:
+- `InteractionProvider`
+- `InputContextStack`
+
+Bad:
+- `Manager`
+- `Utils`
+- `Data2`
+
+---
+
+### Methods
+- Use **PascalCase**
+- Name methods as actions
+- Avoid catch-all or vague verbs
+
+Good:
+- `ApplyInput`
+- `ValidateConfiguration`
+
+Bad:
+- `Handle`
+- `DoThing`
+- `Process`
+
+---
+
+### Variables and fields
+- Use **camelCase**
+- Names should describe intent, not mechanics
+- Single-letter variables are only acceptable in very small, obvious scopes
+
+---
+
+### Booleans
+- Name booleans so they read naturally in conditionals
+
+Good:
+- `isEnabled`
+- `hasAuthority`
+- `canInteract`
+
+Bad:
+- `enabledFlag`
+- `doThing`
+
+---
+
+## `var` usage
+
+We prefer using `var` for local variables.
+
+This keeps code concise and avoids repeating information that is already obvious from the right-hand side.
+
+Avoid `var` only when:
+- the inferred type is unclear
+- it harms readability
+- the type itself carries important meaning
+
+---
+
+## Modern C# syntax
+
+Modern C# shorthand (expression-bodied members, pattern matching, etc.) is encouraged **when it improves readability**.
+
+Examples that are acceptable:
+- simple expression-bodied properties or methods
+- clear pattern matching
+- concise switch expressions
+
+Avoid shorthand when it:
+- obscures control flow
+- makes debugging harder
+- requires mental parsing to understand intent
+
+---
+
+## LINQ usage
+
+LINQ is acceptable and often improves clarity, but should be used thoughtfully.
+
+Guidelines:
+- Prefer LINQ when it makes intent clearer
+- Avoid overly complex or deeply chained queries
+- Be mindful of performance in hot paths
+- Prefer explicit loops when they are more readable or efficient
+
+Readability should not be sacrificed just to use LINQ.
+
+---
+
+## File and type organisation
+
+- One public type per file where possible
+- File name should match the primary type
+- Keep related private types close to their usage
+
+Large files are acceptable if they remain cohesive and readable.
+
+---
+
+## Method size and structure
+
+- Methods should do one thing at one level of abstraction
+- Prefer small, focused methods
+- Use early returns to avoid deep nesting
+
+Extract logic when it improves clarity, not just to reduce line count.
+
+---
+
+## Control flow
+
+- Prefer explicit control flow
+- Avoid deep nesting
+- Handle invalid states early with guard clauses
+
+Readable branching is more important than minimising lines of code.
+
+---
+
+## Comments and documentation
+
+### Comments
+- Explain **why**, not **what**
+- Avoid comments that restate the code
+- Remove outdated comments aggressively
+
+If code requires a comment to explain what it does, it likely needs refactoring.
+
+---
+
+### XML documentation
+- Public APIs should include XML documentation
+- Focus on intent, constraints, and usage
+- Avoid repeating obvious details
+
+This is especially important for shared libraries like CoreLib.
+
+---
+
+## Null handling
+
+Nullability should be handled explicitly and intentionally.
+
+Regardless of nullable reference type usage:
+- avoid ambiguous null states
+- validate inputs early
+- make expectations clear at API boundaries
+
+If nullability is unclear, the code should make it obvious through naming or validation.
+
+---
+
+## `#region` usage
+
+- `#region` is acceptable in **editor code** where large inspector or tooling classes may be unavoidable
+- `#region` should generally be avoided in **runtime / gameplay code**
+
+Needing regions in runtime code is usually a sign the class is doing too much.
+
+---
+
+## Namespaces and folder structure
+
+Namespaces should **always match folder structure**.
+
+- Folder hierarchy should be reflected in namespaces
+- Nest directories and namespaces where it improves clarity
+- Avoid overly flat or overly deep structures
+
+This consistency makes navigation and discovery significantly easier.
+
+---
+
+## Editor vs runtime code
+
+- Editor-only code should live in editor assemblies and namespaces
+- Runtime code should not depend on editor APIs
+- The separation should be obvious from structure alone
+
+Leaks between editor and runtime code should be treated as design issues.
+
+---
+
+## Reviews and consistency
+
+Code reviews are not the place for stylistic debates.
+
+If a pattern already exists:
+- follow it
+- improve it consistently if needed
+- avoid introducing parallel styles
+
+When unsure, default to **predictability**.
+
+---
+
+## Summary
+
+Good code style:
+- communicates intent clearly
+- reduces cognitive load
+- scales with project size and team size
+
+These guidelines exist to support those goals, not to constrain reasonable judgment.

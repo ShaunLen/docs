@@ -1,0 +1,140 @@
+---
+title: "Design Guidelines"
+icon: "compass-drafting"
+description: "Guidelines for designing systems and APIs at Northbound"
+---
+
+## Purpose
+
+These guidelines describe **how we approach system and API design** at Northbound.
+
+They are more concrete than the Engineering Pillars, but intentionally less prescriptive than coding standards.  
+Use them when designing new systems, refactoring existing ones, or reviewing architectural changes.
+
+---
+
+## Design from the outside in
+
+Design starts with **usage**, not implementation.
+
+Before building a system, ask:
+- What should using this feel like?
+- What does the simplest valid usage look like?
+- What mistakes should be hard or impossible to make?
+
+APIs should be shaped by how they are consumed, not by how they are implemented internally.
+
+---
+
+## Prefer narrow, explicit APIs
+
+Exposed APIs should:
+- do one thing
+- require explicit intent
+- avoid ambiguous behaviour
+
+We avoid:
+- “god objects”
+- large configuration surfaces
+- optional flags that radically change behaviour
+
+If an API needs many switches to be usable, it is likely doing too much.
+
+---
+
+## Hide complexity behind stable boundaries
+
+Internal complexity is acceptable if it is:
+- well-contained
+- not exposed to consumers
+- justified by simpler usage
+
+External-facing APIs should change slowly and intentionally.  
+Internal implementations are free to evolve as needed.
+
+---
+
+## Separate authoring, runtime, and validation
+
+Whenever possible, systems should clearly distinguish between:
+- **authoring** (data creation and editing)
+- **validation** (detecting invalid or inconsistent state)
+- **runtime behaviour** (execution)
+
+Mixing these concerns leads to fragile systems and poor tooling.
+
+---
+
+## Prefer composition over inheritance
+
+Composition produces systems that are:
+- easier to reason about
+- easier to extend
+- less tightly coupled
+
+Inheritance is acceptable when it models a true “is-a” relationship, but should not be used as a shortcut for reuse.
+
+---
+
+## Avoid premature generalisation
+
+Abstraction should be earned.
+
+We prefer:
+- solving the concrete problem first
+- generalising only once a pattern is proven
+- resisting “frameworks” built for hypothetical future needs
+
+That said, once a pattern is established, we do expect it to be shared and formalised.
+
+---
+
+## Design for observability
+
+A system is incomplete if it cannot be inspected.
+
+Design with:
+- debug views
+- logging hooks
+- validation output
+- editor affordances
+
+If you can’t easily tell *what a system is doing*, it’s too opaque.
+
+---
+
+## Make invalid states unrepresentable
+
+Whenever feasible:
+- structure data so invalid combinations cannot exist
+- validate aggressively at authoring time
+- fail early and loudly in development builds
+
+Runtime error handling should not be the first line of defence.
+
+---
+
+## Prefer clarity over cleverness
+
+Clever solutions tend to age poorly.
+
+We prefer:
+- readable control flow
+- explicit naming
+- obvious data flow
+
+If a design requires extensive explanation, it should probably be simplified.
+
+---
+
+## Applying these guidelines
+
+These guidelines should be used to:
+- evaluate new system designs
+- guide refactors
+- review API changes
+
+They are not strict rules.  
+When deviating from them, the reasoning should be clear and intentional.
+
+More specific rules live in the **Coding Standards** section of the Handbook.

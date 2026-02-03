@@ -1,0 +1,106 @@
+---
+title: "Engineering Pillars"
+icon: "columns"
+description: "The values and constraints that guide technical decisions at Northbound"
+---
+
+## What these pillars are
+
+These pillars define **what we optimise for** when making technical decisions.
+
+They are intentionally high-level.  
+They do not describe workflows, processes, or step-by-step practices — those live elsewhere.
+
+If a decision aligns with these pillars, it is usually a good one.  
+If it violates them, it should do so intentionally.
+
+---
+
+## Longevity over immediacy
+
+We optimise for systems that remain understandable and adaptable over time.
+
+Short-term convenience should not compromise:
+- clarity
+- maintainability
+- the ability to evolve without large rewrites
+
+---
+
+## Shared solutions over local fixes
+
+When a problem appears more than once, it is a candidate for a shared solution.
+
+We prefer:
+- improving a shared system
+- centralising complexity
+- avoiding divergent implementations of the same idea
+
+---
+
+## Explicitness over magic
+
+Systems should be understandable by reading the code.
+
+We avoid:
+- hidden behaviour
+- implicit coupling
+- configuration that meaningfully alters logic without visibility
+
+Explicit systems are easier to debug, reason about, and change.
+
+---
+
+## Data clarity over flexibility
+
+Data should describe *what exists*, not *how it behaves*.
+
+Flexibility is valuable, but not when it obscures:
+- intent
+- ownership
+- responsibility
+
+Behaviour belongs in code.
+
+---
+
+## Authority over trust
+
+When correctness matters, the system that enforces rules must be authoritative.
+
+Client-side logic is for responsiveness and presentation, not truth.
+
+---
+
+## Composition over replacement
+
+We extend existing engine and platform concepts rather than replacing them.
+
+Building on established patterns reduces fragility and lowers the cost of future changes.
+
+---
+
+## Leverage over speed
+
+We are willing to invest more effort upfront to reduce long-term cost.
+
+Tooling, validation, and shared infrastructure are treated as multipliers, not overhead.
+
+---
+
+## Consistency over novelty
+
+A consistent solution that fits existing patterns is preferred over a novel one.
+
+Predictability reduces cognitive load and improves collaboration.
+
+---
+
+## Using these pillars
+
+Use these pillars to:
+- evaluate architectural proposals
+- guide refactors
+- resolve design disagreements
+
+They describe *direction*, not *implementation*.
