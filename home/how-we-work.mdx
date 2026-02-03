@@ -1,0 +1,109 @@
+---
+title: "How We Work"
+icon: "people-arrows"
+description: "How engineering work is approached and carried out at Northbound"
+---
+
+## High-level approach
+
+At Northbound, we optimise for **long-lived projects** and **shared ownership**.
+
+That means we prefer:
+- clear, maintainable solutions over clever ones
+- systems that scale with team size and project length
+- decisions that reduce future friction, even if they take longer up front
+
+We assume contributors are experienced developers and trust them to make good technical decisions — this document describes the *shape* of how we work, not a rigid rulebook.
+
+---
+
+## Shared responsibility
+
+All code is considered **team-owned**.
+
+- There is no “my system, your system”
+- Improvements to shared code (especially CoreLib) are encouraged
+- If you spot an issue that will affect future work, it’s worth fixing properly
+
+Changes that affect multiple projects should be discussed early to avoid surprises.
+
+---
+
+## CoreLib-first mindset
+
+CoreLib exists to absorb complexity so individual games don’t have to.
+
+When working on gameplay features, ask:
+- Is this something we’ll need again?
+- Does this belong in a shared system?
+- Would future projects benefit from this being generalised?
+
+If the answer is “yes”, the preferred approach is:
+1. improve or extend CoreLib
+2. document the change
+3. keep game code thin
+
+Not everything belongs in CoreLib — but repeated patterns often do.
+
+---
+
+## Editor-first workflows
+
+We strongly prefer **authoring and validation in the editor** rather than in code or data files.
+
+If a system involves:
+- configuration
+- tuning
+- content authoring
+- state inspection
+
+…it should probably have editor tooling.
+
+This reduces runtime errors, speeds up iteration, and makes systems easier to understand for everyone.
+
+---
+
+## Iteration and refactoring
+
+Refactoring is a normal and expected part of development.
+
+- Small refactors should happen opportunistically
+- Larger refactors should be planned and communicated
+- Breaking changes are acceptable if they meaningfully improve clarity or correctness
+
+The goal is not to avoid change, but to make change **safe and intentional**.
+
+---
+
+## Communication and decisions
+
+When making architectural decisions:
+- prefer writing things down over relying on tribal knowledge
+- capture *why* a decision was made, not just *what* was done
+- keep discussion close to the code (PRs, issues, docs)
+
+This wiki is a valid place to record decisions that affect how we work or build systems.
+
+---
+
+## Quality bar
+
+Code is expected to:
+- be readable without extensive explanation
+- fail loudly and clearly in development builds
+- include validation and debug tooling where appropriate
+- follow the conventions documented in the Handbook
+
+We don’t aim for perfection (we all make plenty of mistakes), but we do aim for consistency.
+
+---
+
+## In practice
+
+In day-to-day work, this usually means:
+- spending time upfront on structure and APIs
+- investing in tooling when it reduces long-term cost
+- keeping gameplay code simple by pushing complexity into shared systems
+- revisiting and improving existing systems as requirements evolve
+
+This approach trades short-term speed for long-term leverage — and that trade-off is intentional.

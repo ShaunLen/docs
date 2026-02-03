@@ -1,0 +1,103 @@
+---
+title: "Overview"
+icon: "circle-info"
+description: "How Northbound approaches building games and shared systems"
+---
+
+## Northbound at a glance
+
+Northbound builds games with a strong emphasis on **shared systems**, **clean architecture**, and **editor-first workflows**.
+
+Rather than solving the same problems differently in every project, we invest heavily in:
+- reusable core systems
+- strong internal tooling
+- clear conventions and guardrails
+
+This allows individual games to stay focused on **gameplay and content**, not infrastructure.
+
+---
+
+## CoreLib at the centre
+
+At the heart of our projects is **CoreLib** — a shared library that provides:
+- foundational runtime systems (input, interactions, state, data)
+- robust editor tooling built on top of s&box conventions
+- opinionated patterns that reduce accidental complexity
+
+CoreLib is **not** meant to be a general-purpose framework or engine replacement.  
+It exists to solve *our* recurring problems in a consistent, maintainable way.
+
+Games are expected to:
+- depend on CoreLib
+- extend it where appropriate
+- avoid modifying it directly unless improving it for all projects
+
+---
+
+## Our design philosophy
+
+A few high-level ideas inform most technical decisions at Northbound:
+
+- **Editor-first**  
+  If a system benefits from authoring or inspection, it should have proper editor tooling.
+
+- **Clean APIs over convenience**  
+  We are happy to do more work inside the library to keep usage simple and explicit.
+
+- **Data vs behaviour**  
+  Data is authored and validated; behaviour lives in code. Mixing the two is avoided where possible.
+
+- **Server-authoritative by default**  
+  Especially for gameplay-affecting systems.
+
+- **Build on s&box, don’t fight it**  
+  CoreLib extends and standardises s&box patterns rather than replacing them.
+
+These principles are expanded on in the **Handbook**.
+
+---
+
+## How projects are structured
+
+Most Northbound projects follow the same high-level shape:
+
+- **CoreLib**  
+  Shared systems and editor tooling.
+
+- **Third-party libraries**  
+  Existing libraries that compliment CoreLib, occasionally modified.
+
+- **Game code**  
+  Thin, game-specific logic:
+  - content
+  - composition
+  - rules
+  - presentation
+
+- **Editor extensions**  
+  Where needed, built on top of CoreLib’s Workbench and tooling patterns.
+
+This separation helps keep projects scalable and makes it easier to move improvements “up” into shared code.
+
+---
+
+## How to use this wiki
+
+Use this wiki as a **source of truth** for:
+- how CoreLib systems are intended to be used
+- which patterns are encouraged or discouraged
+- how we integrate third-party libraries
+- why certain architectural decisions were made
+
+If something feels unclear, inconsistent, or undocumented — that’s a signal the wiki should be updated.
+
+---
+
+## Next steps
+
+If you’re getting started:
+- Read the **Engineering Pillars** in the Handbook
+- Skim the **CoreLib Architecture** page
+- Dive into the specific CoreLib systems relevant to your work
+
+This should give you enough context to work confidently within Northbound’s codebases.

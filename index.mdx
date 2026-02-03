@@ -1,90 +1,111 @@
 ---
 title: "Home"
 icon: "home"
-description: "Welcome to the Northbound wiki!"
+description: "Internal engineering wiki for Northbound"
 ---
 
-## What's this for?
+## What is this wiki?
 
-This wiki exists to make the process of understanding and using the shared libraries of Northbound much easier (hopefully).
-All of our libraries are designed to be powerful and robust on the inside, yet simple and flexible on the outside.
+This is the internal knowledge base for **Northbound**.
 
-## Getting started
+Its purpose is to make it easy to:
+- Understand and use **CoreLib**, our shared game framework
+- Learn the **patterns and conventions** we use across projects
+- Document how we integrate and wrap **third-party libraries**
+- Capture engineering decisions so they don’t live only in people’s heads
 
-A collection of guides are accessible in the left navigation, and API references can be accessed via the top navigation.
+All of our shared systems are designed to be **robust and opinionated internally**, while exposing **clean, minimal APIs** to game code.  
+This wiki exists to explain *how* and *why* those systems work the way they do.
+
+---
+
+## How this wiki is organised
+
+The navigation is split by **intent**, not by documentation type:
 
 <Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+  <Card title="Handbook" icon="book">
+    Engineering pillars, coding standards, architectural rules, and workflow.
+    Read this to understand how we build and maintain long-lived projects.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+
+  <Card title="CoreLib" icon="cubes">
+    Documentation for CoreLib systems: Enhanced Input, interactions, state, definitions,
+    and editor tooling. This is the primary reference for gameplay and tooling code.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+
+  <Card title="Integrations" icon="plug">
+    How Northbound uses third-party libraries (e.g. Facepunch GameEvents),
+    including conventions, wrappers, and gotchas.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+
+  <Card title="Reference" icon="list">
+    Terminology, naming conventions, folder structure, and (eventually) API reference.
   </Card>
 </Columns>
 
-## Create beautiful pages
+---
 
-Everything you need to create world-class documentation.
+## Where to start
+
+If you’re new to a system or project, these are good entry points:
 
 <Columns cols={2}>
   <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
+    title="Engineering Pillars"
+    icon="compass"
+    href="/handbook/pillars"
   >
-    Use MDX to style your docs pages.
+    The high-level rules and principles that guide how we write code and build systems.
   </Card>
+
   <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
+    title="CoreLib Architecture"
+    icon="diagram-project"
+    href="/corelib/architecture"
   >
-    Add sample code to demonstrate how to use your product.
+    How CoreLib is structured, including runtime vs editor code and core patterns.
   </Card>
+
   <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
+    title="Enhanced Input"
+    icon="gamepad"
+    href="/corelib/input/overview"
   >
-    Display images and other media.
+    Our input system, how it works, and how to use it in gameplay code.
   </Card>
+
   <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
+    title="Editor Workbench"
+    icon="wrench"
+    href="/editor/workbench/overview"
   >
-    Write once and reuse across your docs.
+    The shared editor tooling framework that powers CoreLib editor apps.
   </Card>
 </Columns>
 
-## Need inspiration?
+---
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## What this wiki is *not*
+
+- It is **not** an s&box beginner guide  
+- It is **not** a general C# tutorial  
+- It is **not** a replacement for upstream documentation  
+
+Instead, it focuses on **how *we* do things at Northbound**, and why.
+
+When possible, we link to upstream docs rather than duplicating them.
+
+---
+
+## Keeping this useful
+
+This wiki is a living document. If you:
+- discover a recurring question
+- make an architectural decision
+- add or refactor a CoreLib system
+- find a sharp edge in a third-party library
+
+…document it here.
+
+Clear docs are part of the engineering work, not an afterthought.

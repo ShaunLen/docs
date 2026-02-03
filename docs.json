@@ -9,114 +9,204 @@
   },
   "favicon": "/favicon.svg",
   "navigation": {
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "icon": "robot",
+          "href": "https://www.github.com"
+        },
+        {
+          "anchor": "Discord",
+          "icon": "discord",
+          "href": "https://discord.gg/8dYTXus67e"
+        },
+        {
+          "anchor": "S&box org",
+          "icon": "people-group",
+          "href": "https://sbox.game"
+        }
+      ]
+    },
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Home",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Northbound",
             "pages": [
               "index",
-              "guides/getting-started/project-setup",
-              "guides/getting-started/core-lib"
-            ]
-          },
-          {
-            "group": "Customization",
-            "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
-          },
-          {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "home/overview",
+              "home/how-we-work",
+              "home/projects"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Handbook",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Engineering principles",
             "pages": [
-              "api-reference/introduction"
+              "handbook/pillars",
+              "handbook/design-guidelines",
+              "handbook/performance-philosophy"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Coding standards",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "handbook/code-style",
+              "handbook/architecture-conventions",
+              "handbook/logging-and-debugging"
+            ]
+          },
+          {
+            "group": "Workflow",
+            "pages": [
+              "handbook/branching-strategy",
+              "handbook/commits-and-prs",
+              "handbook/releases",
+              "handbook/upgrading-corelib"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CoreLib",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "corelib/index",
+              "corelib/architecture",
+              "corelib/using-corelib"
+            ]
+          },
+          {
+            "group": "Enhanced Input",
+            "pages": [
+              "corelib/input/overview",
+              "corelib/input/concepts",
+              "corelib/input/runtime-usage",
+              "corelib/input/rebinding",
+              "corelib/input/debugging",
+              "corelib/input/best-practices"
+            ]
+          },
+          {
+            "group": "Interaction system",
+            "pages": [
+              "corelib/interactions/overview",
+              "corelib/interactions/concepts",
+              "corelib/interactions/authoring",
+              "corelib/interactions/runtime-flow",
+              "corelib/interactions/ui-prompts",
+              "corelib/interactions/debugging"
+            ]
+          },
+          {
+            "group": "State & events",
+            "pages": [
+              "corelib/state/overview",
+              "corelib/state/shared-state",
+              "corelib/state/events",
+              "corelib/state/patterns"
+            ]
+          },
+          {
+            "group": "Definitions & data",
+            "pages": [
+              "corelib/definitions/overview",
+              "corelib/definitions/stable-ids",
+              "corelib/definitions/authoring",
+              "corelib/definitions/validation"
+            ]
+          },
+          {
+            "group": "Editor tooling",
+            "pages": [
+              "editor/workbench/overview",
+              "editor/workbench/architecture",
+              "editor/workbench/working-copy",
+              "editor/workbench/validation",
+              "editor/workbench/undo-redo",
+              "editor/tools/input-editor",
+              "editor/tools/interaction-editor",
+              "editor/extending/creating-a-workbench-app",
+              "editor/extending/custom-docks",
+              "editor/extending/validation-rules",
+              "editor/extending/debug-tools"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Integrations",
+        "groups": [
+          {
+            "group": "Third-party libraries",
+            "pages": [
+              "integrations/game-events",
+              "integrations/other-libraries"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Conventions",
+            "pages": [
+              "reference/terminology",
+              "reference/naming",
+              "reference/folder-structure"
+            ]
+          },
+          {
+            "group": "API reference",
+            "pages": [
+              "reference/api/index"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Discord",
-          "href": "https://discord.gg/8dYTXus67e",
-          "icon": "discord"
-        },
-        {
-          "anchor": "S&box org",
-          "href": "https://mintlify.com/blog",
-          "icon": "people-group"
-        }
-      ]
-    }
+    ]
   },
   "logo": {
     "light": "/logo/light.svg",
     "dark": "/logo/dark.svg"
   },
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
+    "links": []
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+  "background": {
+    "decoration": "gradient"
+  },
+  "appearance": {
+    "default": "dark"
+  },
+  "search": {
+    "prompt": "Search..."
+  },
+  "errors": {
+    "404": {
+      "title": "Oops!",
+      "description": "This page doesn't exist. How did you get here?"
     }
   }
 }
