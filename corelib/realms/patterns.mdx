@@ -1,0 +1,523 @@
+---
+title: "Common Patterns"
+icon: "diagram-project"
+description: "Real-world implementation patterns and complete examples"
+---
+
+This page demonstrates common patterns with complete, production-ready examples.
+
+---
+
+## Client → Server → AllClients
+
+The most common multiplayer pattern: client requests action, server validates and broadcasts result.
+
+### Pattern 1: Using the helper
+
+```csharp
+// Anywhere (client or server)
+RealmRouter.ExecuteOnServerThenBroadcast(
+    new PlayerActionEvent
+    {
+        PlayerId = player.Id,
+        ActionType = ActionType.Wave
+    },
+    validate: (cmd, ctx) =>
+    {
+        // Server-side validation
+        if (ctx.Sender == null) return false;
+        return PlayerCanPerformAction(cmd, ctx.Sender);
+    }
+);
+```
+
+### Pattern 2: Manual (more control)
+
+<Steps>
+  <Step title="Define commands">
+    ```csharp
+    // Client → Server
+    [RealmCommand]
+    public struct PlayerActionRequest : IRealmCommand
+    {
+        public ActionType Action { get; set; }
+    }
+
+    // Server → AllClients
+    [RealmCommand]
+    public struct PlayerActionEvent : IRealmCommand
+    {
+        public Guid PlayerId { get; set; }
+        public ActionType Action { get; set; }
+    }
+    ```
+  </Step>
+
+  <Step title="Client sends request">
+    ```csharp
+    // When player presses emote button
+    RealmRouter.ExecuteOnServer(new PlayerActionRequest
+    {
+        Action = ActionType.Wave
+    });
+    ```
+  </Step>
+
+  <Step title="Server validates and broadcasts">
+    ```csharp
+    public class PlayerActionRequestHandler : RealmCommandHandler<PlayerActionRequest>
+    {
+        protected override void OnHandle(in PlayerActionRequest cmd, RealmContext ctx)
+        {
+            ctx.RequireServer();
+            var sender = ctx.RequireSender();
+
+            // Validate
+            if (!CanPerformAction(sender, cmd.Action))
+                return;
+
+            // Broadcast validated event
+            RealmRouter.BroadcastToAllClients(new PlayerActionEvent
+            {
+                PlayerId = sender.Id,
+                Action = cmd.Action
+            });
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="All clients handle event">
+    ```csharp
+    public class PlayerActionEventHandler : RealmCommandHandler<PlayerActionEvent>
+    {
+        protected override void OnHandle(in PlayerActionEvent cmd, RealmContext ctx)
+        {
+            var player = FindPlayer(cmd.PlayerId);
+            player?.PlayEmote(cmd.Action);
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Complete damage system
+
+A production-ready damage system with validation and feedback:
+
+```csharp
+// ==================== Commands ====================
+
+[RealmCommand(Description = "Client requests to deal damage")]
+public struct DealDamageRequest : IRealmCommand
+{
+    public Guid AttackerId { get; set; }
+    public Guid TargetId { get; set; }
+    public float Amount { get; set; }
+    public DamageType Type { get; set; }
+    public Vector3 HitLocation { get; set; }
+}
+
+[RealmCommand(Description = "Server confirms damage was dealt")]
+public struct DamageDealtEvent : IRealmCommand
+{
+    public Guid AttackerId { get; set; }
+    public Guid TargetId { get; set; }
+    public float FinalDamage { get; set; }
+    public Vector3 HitLocation { get; set; }
+    public bool WasKilled { get; set; }
+}
+
+[RealmCommand(Description = "Show local hit marker")]
+public struct ShowHitmarkerLocal : IRealmCommand
+{
+    public Vector3 Position { get; set; }
+    public float Damage { get; set; }
+    public bool IsCritical { get; set; }
+}
+
+// ==================== Server Handler ====================
+
+public class DealDamageRequestHandler : RealmCommandHandler<DealDamageRequest>
+{
+    protected override void OnHandle(in DealDamageRequest cmd, RealmContext ctx)
+    {
+        ctx.RequireServer();
+        var attacker = ctx.RequireSender();
+
+        // Validation
+        var attackerEntity = FindEntity(cmd.AttackerId);
+        var targetEntity = FindEntity(cmd.TargetId);
+
+        if (attackerEntity == null || targetEntity == null)
+            return;
+
+        if (cmd.Amount <= 0)
+            return;
+
+        if (!IsInRange(attackerEntity, targetEntity, MaxAttackRange))
+            return;
+
+        if (!HasLineOfSight(attackerEntity.Position, targetEntity.Position))
+            return;
+
+        // Apply damage
+        var finalDamage = CalculateFinalDamage(cmd.Amount, cmd.Type, targetEntity);
+        var wasKilled = targetEntity.TakeDamage(finalDamage);
+
+        // Broadcast result
+        RealmRouter.BroadcastToAllClients(new DamageDealtEvent
+        {
+            AttackerId = cmd.AttackerId,
+            TargetId = cmd.TargetId,
+            FinalDamage = finalDamage,
+            HitLocation = cmd.HitLocation,
+            WasKilled = wasKilled
+        });
+    }
+}
+
+// ==================== Client Handlers ====================
+
+// Update UI and effects
+public class DamageDealtEventHandler : RealmCommandHandler<DamageDealtEvent>
+{
+    protected override void OnHandle(in DamageDealtEvent cmd, RealmContext ctx)
+    {
+        // Update health bar
+        var target = FindEntity(cmd.TargetId);
+        if (target != null)
+        {
+            UpdateHealthBar(target);
+        }
+
+        // Spawn hit effect
+        SpawnHitEffect(cmd.HitLocation, cmd.FinalDamage);
+
+        // Handle death
+        if (cmd.WasKilled)
+        {
+            PlayDeathAnimation(cmd.TargetId);
+        }
+    }
+}
+
+// Show local hit marker
+public class ShowHitmarkerHandler : RealmCommandHandler<ShowHitmarkerLocal>
+{
+    protected override void OnHandle(in ShowHitmarkerLocal cmd, RealmContext ctx)
+    {
+        SpawnHitmarker(cmd.Position, cmd.Damage, cmd.IsCritical);
+    }
+}
+
+// ==================== Usage ====================
+
+public class WeaponController : Component
+{
+    public void FireWeapon()
+    {
+        var trace = DoWeaponTrace();
+
+        if (trace.Hit && trace.GameObject != null)
+        {
+            // Instant local feedback
+            RealmRouter.ExecuteLocally(new ShowHitmarkerLocal
+            {
+                Position = trace.HitPosition,
+                Damage = WeaponDamage,
+                IsCritical = trace.Bone == "head"
+            });
+
+            // Request server to apply damage
+            RealmRouter.ExecuteOnServer(new DealDamageRequest
+            {
+                AttackerId = Owner.Id,
+                TargetId = trace.GameObject.Id,
+                Amount = WeaponDamage,
+                Type = DamageType.Ballistic,
+                HitLocation = trace.HitPosition
+            });
+        }
+    }
+}
+```
+
+---
+
+## Chat system
+
+Complete chat system with validation and spam prevention:
+
+```csharp
+// ==================== Commands ====================
+
+[RealmCommand(Description = "Client wants to send chat message")]
+public struct SendChatRequest : IRealmCommand
+{
+    public string Message { get; set; }
+}
+
+[RealmCommand(Description = "Server broadcasts chat message")]
+public struct ChatMessageEvent : IRealmCommand
+{
+    public string PlayerName { get; set; }
+    public Guid PlayerId { get; set; }
+    public string Message { get; set; }
+    public long Timestamp { get; set; }
+}
+
+// ==================== Server Handler ====================
+
+public class SendChatRequestHandler : RealmCommandHandler<SendChatRequest>
+{
+    private Dictionary<Connection, List<long>> _recentMessages = new();
+    private const int MaxMessagesPerMinute = 10;
+
+    protected override void OnHandle(in SendChatRequest cmd, RealmContext ctx)
+    {
+        ctx.RequireServer();
+        var sender = ctx.RequireSender();
+
+        // Validate message
+        if (string.IsNullOrWhiteSpace(cmd.Message))
+            return;
+
+        if (cmd.Message.Length > 200)
+        {
+            SendErrorToClient(sender, "Message too long");
+            return;
+        }
+
+        // Spam prevention
+        if (IsSpamming(sender))
+        {
+            SendErrorToClient(sender, "You're sending messages too quickly");
+            return;
+        }
+
+        // Profanity filter
+        var filteredMessage = FilterProfanity(cmd.Message);
+
+        // Broadcast validated message
+        RealmRouter.BroadcastToAllClients(new ChatMessageEvent
+        {
+            PlayerName = sender.DisplayName,
+            PlayerId = sender.Id,
+            Message = filteredMessage,
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        });
+
+        TrackMessage(sender);
+    }
+
+    bool IsSpamming(Connection sender)
+    {
+        if (!_recentMessages.TryGetValue(sender, out var timestamps))
+        {
+            _recentMessages[sender] = new List<long>();
+            return false;
+        }
+
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var oneMinuteAgo = now - 60000;
+
+        // Remove old timestamps
+        timestamps.RemoveAll(t => t < oneMinuteAgo);
+
+        return timestamps.Count >= MaxMessagesPerMinute;
+    }
+
+    void TrackMessage(Connection sender)
+    {
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        if (!_recentMessages.ContainsKey(sender))
+            _recentMessages[sender] = new List<long>();
+
+        _recentMessages[sender].Add(now);
+    }
+}
+
+// ==================== Client Handler ====================
+
+public class ChatMessageEventHandler : RealmCommandHandler<ChatMessageEvent>
+{
+    protected override void OnHandle(in ChatMessageEvent cmd, RealmContext ctx)
+    {
+        AddChatMessage(cmd.PlayerName, cmd.Message, cmd.Timestamp);
+    }
+
+    void AddChatMessage(string playerName, string message, long timestamp)
+    {
+        var time = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).LocalDateTime;
+        var formatted = $"[{time:HH:mm}] {playerName}: {message}";
+
+        ChatUI.AddMessage(formatted);
+        Log.Info(formatted);
+    }
+}
+
+// ==================== Usage ====================
+
+public class ChatInputBox : Component
+{
+    public void SendMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+            return;
+
+        RealmRouter.ExecuteOnServer(new SendChatRequest
+        {
+            Message = message
+        });
+
+        ClearInputBox();
+    }
+}
+```
+
+---
+
+## Inventory system
+
+Server-authoritative inventory with client predictions:
+
+```csharp
+// ==================== Commands ====================
+
+[RealmCommand]
+public struct UseItemRequest : IRealmCommand
+{
+    public Guid ItemId { get; set; }
+}
+
+[RealmCommand]
+public struct ItemUsedEvent : IRealmCommand
+{
+    public Guid PlayerId { get; set; }
+    public Guid ItemId { get; set; }
+    public bool Success { get; set; }
+}
+
+[RealmCommand]
+public struct UpdateInventoryUILocal : IRealmCommand
+{
+    public List<ItemData> Items { get; set; }
+}
+
+// ==================== Server Handler ====================
+
+public class UseItemRequestHandler : RealmCommandHandler<UseItemRequest>
+{
+    protected override void OnHandle(in UseItemRequest cmd, RealmContext ctx)
+    {
+        ctx.RequireServer();
+        var sender = ctx.RequireSender();
+
+        var player = GetPlayer(sender);
+        if (player == null)
+            return;
+
+        var item = player.Inventory.GetItem(cmd.ItemId);
+        if (item == null)
+        {
+            BroadcastFailure(sender, cmd.ItemId);
+            return;
+        }
+
+        // Validate usage
+        if (!item.CanUse(player))
+        {
+            BroadcastFailure(sender, cmd.ItemId);
+            return;
+        }
+
+        // Use item
+        item.Use(player);
+
+        // Broadcast success
+        RealmRouter.BroadcastToAllClients(new ItemUsedEvent
+        {
+            PlayerId = player.Id,
+            ItemId = cmd.ItemId,
+            Success = true
+        });
+    }
+
+    void BroadcastFailure(Connection sender, Guid itemId)
+    {
+        RealmRouter.BroadcastToAllClients(new ItemUsedEvent
+        {
+            PlayerId = sender.Id,
+            ItemId = itemId,
+            Success = false
+        });
+    }
+}
+
+// ==================== Client Handlers ====================
+
+public class ItemUsedEventHandler : RealmCommandHandler<ItemUsedEvent>
+{
+    protected override void OnHandle(in ItemUsedEvent cmd, RealmContext ctx)
+    {
+        var player = FindPlayer(cmd.PlayerId);
+        if (player == null)
+            return;
+
+        if (cmd.Success)
+        {
+            // Play item use effect
+            PlayItemEffect(cmd.ItemId);
+
+            // Update inventory UI
+            RefreshInventoryUI(player);
+        }
+        else
+        {
+            // Show error feedback
+            ShowError("Cannot use item");
+        }
+    }
+}
+
+// ==================== Usage with Prediction ====================
+
+public class InventoryUI : Component
+{
+    public void UseItem(Guid itemId)
+    {
+        // Optimistic client prediction
+        RealmRouter.ExecuteLocally(new UpdateInventoryUILocal
+        {
+            Items = GetPredictedInventory(itemId)
+        });
+
+        // Request server to actually use it
+        RealmRouter.ExecuteOnServer(new UseItemRequest
+        {
+            ItemId = itemId
+        });
+
+        // Server will broadcast ItemUsedEvent which corrects any mispredictions
+    }
+}
+```
+
+---
+
+## Related pages
+
+<CardGroup cols={3}>
+  <Card title="Commands" icon="code" href="/corelib/realms/commands">
+    Command definitions
+  </Card>
+  <Card title="Handlers" icon="microchip" href="/corelib/realms/handlers">
+    Handler patterns
+  </Card>
+  <Card title="Debugging" icon="bug" href="/corelib/realms/debugging">
+    Troubleshooting guide
+  </Card>
+</CardGroup>

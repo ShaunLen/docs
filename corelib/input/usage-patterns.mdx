@@ -1,0 +1,786 @@
+---
+title: "Usage Patterns"
+icon: "code"
+description: "Common implementation patterns and real-world examples"
+---
+
+This page demonstrates common usage patterns with complete, realistic examples.
+
+---
+
+## Complete player controller
+
+A typical player controller using Enhanced Input:
+
+```csharp
+using CoreLib.EnhancedInput.Api;
+
+public class PlayerController : InputComponent
+{
+    [Property] public float MoveSpeed { get; set; } = 300f;
+    [Property] public float SprintMultiplier { get; set; } = 1.5f;
+    [Property] public float JumpForce { get; set; } = 500f;
+    [Property] public float LookSensitivity { get; set; } = 1.0f;
+
+    private CharacterController _character;
+    private bool _isSprinting;
+
+    protected override void OnAwake()
+    {
+        _character = GetComponent<CharacterController>();
+    }
+
+    protected override void RegisterInputBindings()
+    {
+        // Discrete actions (events)
+        Bind(EnhancedInput.Jump).OnTriggered(Jump);
+        Bind(EnhancedInput.Interact).OnTriggered(TryInteract);
+
+        // Sprint toggle
+        Bind(EnhancedInput.Sprint)
+            .OnStarted(() => _isSprinting = true)
+            .OnCompleted(() => _isSprinting = false);
+    }
+
+    protected override void OnUpdate()
+    {
+        // Continuous state (polling)
+        HandleMovement();
+        HandleLook();
+    }
+
+    void HandleMovement()
+    {
+        var moveInput = EnhancedInput.Move.Value;
+        var speed = _isSprinting ? MoveSpeed * SprintMultiplier : MoveSpeed;
+        var wishVel = new Vector3(moveInput.x, 0, moveInput.y) * speed;
+        _character.Move(wishVel * Time.Delta);
+    }
+
+    void HandleLook()
+    {
+        var lookInput = EnhancedInput.Look.Value * LookSensitivity;
+        var lookAngles = new Angles(0, lookInput.x, 0);
+        _character.EyeAngles += lookAngles * Time.Delta;
+    }
+
+    void Jump()
+    {
+        if (_character.IsOnGround)
+            _character.Velocity += Vector3.Up * JumpForce;
+    }
+
+    void TryInteract()
+    {
+        var trace = Scene.Trace
+            .Ray(_character.EyePosition, _character.EyeRotation.Forward * 100f)
+            .Run();
+
+        if (trace.Hit && trace.GameObject.Components.TryGet<IInteractable>(out var interactable))
+        {
+            interactable.Interact(this);
+        }
+    }
+}
+```
+
+---
+
+## Weapon system
+
+### Simple firing
+
+```csharp
+public class WeaponController : InputComponent
+{
+    [Property] public float FireRate { get; set; } = 0.1f;
+    [Property] public int Damage { get; set; } = 10;
+
+    private float _lastFireTime;
+
+    protected override void RegisterInputBindings()
+    {
+        Bind(EnhancedInput.Fire).OnTriggered(TryFire);
+    }
+
+    void TryFire()
+    {
+        if (Time.Now - _lastFireTime < FireRate)
+            return;
+
+        FireWeapon();
+        _lastFireTime = Time.Now;
+    }
+
+    void FireWeapon()
+    {
+        // Raycast, spawn bullet, apply damage
+        var trace = DoWeaponTrace();
+        if (trace.Hit)
+        {
+            ApplyDamage(trace.GameObject, Damage);
+        }
+    }
+}
+```
+
+### Charge attack
+
+```csharp
+public class ChargeWeapon : InputComponent
+{
+    [Property] public float MaxChargeTime { get; set; } = 2.0f;
+    [Property] public float BaseDamage { get; set; } = 10f;
+    [Property] public float ChargeMultiplier { get; set; } = 3f;
+
+    private float _chargeStartTime;
+    private bool _isCharging;
+    private GameObject _chargeEffect;
+
+    protected override void RegisterInputBindings()
+    {
+        // Configure Fire action with Hold trigger (2s, no repeat)
+        Bind(EnhancedInput.Fire)
+            .OnStarted(StartCharge)
+            .OnCompleted(ReleaseCharge)
+            .OnCanceled(CancelCharge);
+    }
+
+    void StartCharge()
+    {
+        _isCharging = true;
+        _chargeStartTime = Time.Now;
+
+        // Visual feedback
+        _chargeEffect = SpawnChargeEffect();
+    }
+
+    void ReleaseCharge()
+    {
+        var chargeTime = MathF.Min(Time.Now - _chargeStartTime, MaxChargeTime);
+        var chargeFactor = chargeTime / MaxChargeTime;
+        var damage = BaseDamage * (1f + chargeFactor * ChargeMultiplier);
+
+        FireWeapon(damage);
+        CleanupCharge();
+    }
+
+    void CancelCharge()
+    {
+        // Released too early - no attack
+        CleanupCharge();
+    }
+
+    void CleanupCharge()
+    {
+        _isCharging = false;
+        _chargeEffect?.Destroy();
+        _chargeEffect = null;
+    }
+
+    protected override void OnUpdate()
+    {
+        if (_isCharging && _chargeEffect != null)
+        {
+            // Update charge visual
+            var chargeProgress = (Time.Now - _chargeStartTime) / MaxChargeTime;
+            UpdateChargeEffect(_chargeEffect, MathF.Min(chargeProgress, 1f));
+        }
+    }
+}
+```
+
+### Grenade throw (hold to aim, release to throw)
+
+```csharp
+public class GrenadeController : InputComponent
+{
+    [Property] public float MinThrowForce { get; set; } = 300f;
+    [Property] public float MaxThrowForce { get; set; } = 1000f;
+    [Property] public float MaxChargeTime { get; set; } = 1.5f;
+
+    private float _chargeStartTime;
+    private GameObject _trajectoryPreview;
+
+    protected override void RegisterInputBindings()
+    {
+        // Configure Grenade action with Released trigger
+        Bind(EnhancedInput.Grenade)
+            .OnStarted(StartAiming)
+            .OnCompleted(ThrowGrenade);
+    }
+
+    void StartAiming()
+    {
+        _chargeStartTime = Time.Now;
+        _trajectoryPreview = ShowTrajectoryPreview();
+    }
+
+    void ThrowGrenade()
+    {
+        var chargeTime = MathF.Min(Time.Now - _chargeStartTime, MaxChargeTime);
+        var chargeFactor = chargeTime / MaxChargeTime;
+        var throwForce = MathF.Lerp(MinThrowForce, MaxThrowForce, chargeFactor);
+
+        SpawnGrenade(GetThrowDirection(), throwForce);
+        HideTrajectoryPreview();
+    }
+
+    protected override void OnUpdate()
+    {
+        if (_trajectoryPreview != null)
+        {
+            var chargeTime = MathF.Min(Time.Now - _chargeStartTime, MaxChargeTime);
+            var chargeFactor = chargeTime / MaxChargeTime;
+            UpdateTrajectory(_trajectoryPreview, chargeFactor);
+        }
+    }
+}
+```
+
+---
+
+## Movement patterns
+
+### Double-tap to dodge
+
+```csharp
+public class DodgeController : InputComponent
+{
+    [Property] public float DodgeDistance { get; set; } = 500f;
+    [Property] public float DodgeDuration { get; set; } = 0.3f;
+
+    private CharacterController _character;
+    private bool _isDodging;
+
+    protected override void OnAwake()
+    {
+        _character = GetComponent<CharacterController>();
+    }
+
+    protected override void RegisterInputBindings()
+    {
+        // Configure Dodge action with DoubleTap trigger (0.2s per tap, 0.3s window)
+        Bind(EnhancedInput.Dodge).OnTriggered(PerformDodge);
+    }
+
+    void PerformDodge()
+    {
+        if (_isDodging)
+            return;
+
+        var moveDirection = EnhancedInput.Move.Value;
+        if (moveDirection.Length < 0.1f)
+            moveDirection = Vector2.UnitY; // Forward if no input
+
+        var direction3D = new Vector3(moveDirection.x, 0, moveDirection.y);
+        StartDodge(direction3D.Normal);
+    }
+
+    async void StartDodge(Vector3 direction)
+    {
+        _isDodging = true;
+
+        // Disable gravity, apply dodge velocity
+        _character.UseGravity = false;
+        _character.Velocity = direction * DodgeDistance / DodgeDuration;
+
+        // Play animation
+        PlayDodgeAnimation();
+
+        await Task.DelaySeconds(DodgeDuration);
+
+        _character.UseGravity = true;
+        _isDodging = false;
+    }
+}
+```
+
+### Sprint + Jump = Super jump
+
+```csharp
+public class MovementController : InputComponent
+{
+    [Property] public float JumpForce { get; set; } = 500f;
+    [Property] public float SuperJumpMultiplier { get; set; } = 2.0f;
+
+    private CharacterController _character;
+
+    protected override void OnAwake()
+    {
+        _character = GetComponent<CharacterController>();
+    }
+
+    protected override void RegisterInputBindings()
+    {
+        // Normal jump
+        Bind(EnhancedInput.Jump).OnTriggered(NormalJump);
+
+        // Super jump (Sprint+Jump)
+        // Configure SuperJump action with Chorded trigger (ChordAction: "sprint")
+        Bind(EnhancedInput.SuperJump).OnTriggered(SuperJump);
+    }
+
+    void NormalJump()
+    {
+        if (!_character.IsOnGround)
+            return;
+
+        _character.Velocity += Vector3.Up * JumpForce;
+        PlayJumpAnimation();
+    }
+
+    void SuperJump()
+    {
+        if (!_character.IsOnGround)
+            return;
+
+        _character.Velocity += Vector3.Up * JumpForce * SuperJumpMultiplier;
+        PlaySuperJumpAnimation();
+        SpawnSuperJumpEffect();
+    }
+}
+```
+
+---
+
+## UI and menus
+
+### Inventory with input blocking
+
+```csharp
+public class InventoryUI : Component
+{
+    private InputContext _inventoryContext;
+    private IInputService _input;
+    private bool _isOpen;
+
+    protected override void OnStart()
+    {
+        _input = CoreServiceRegistry.Get<IInputService>();
+
+        // Create context (high priority, blocks gameplay)
+        _inventoryContext = new InputContext("inventory", 100)
+            .WithActions("menu_select", "menu_back", "menu_navigate")
+            .WithBlockedActions("jump", "fire", "interact", "reload")
+            .WithConsumesInput(true);
+
+        // Subscribe to input (manual since not using InputComponent)
+        EnhancedInput.ToggleInventory.OnTriggered += ToggleInventory;
+        EnhancedInput.MenuBack.OnTriggered += Close;
+    }
+
+    protected override void OnDestroy()
+    {
+        EnhancedInput.ToggleInventory.OnTriggered -= ToggleInventory;
+        EnhancedInput.MenuBack.OnTriggered -= Close;
+    }
+
+    void ToggleInventory()
+    {
+        if (_isOpen)
+            Close();
+        else
+            Open();
+    }
+
+    void Open()
+    {
+        _isOpen = true;
+        _input.Contexts.Push(_inventoryContext);
+
+        // Show UI
+        ShowInventoryPanel();
+    }
+
+    void Close()
+    {
+        if (!_isOpen)
+            return;
+
+        _isOpen = false;
+        _input.Contexts.Pop("inventory");
+
+        // Hide UI
+        HideInventoryPanel();
+    }
+}
+```
+
+### Pause menu with full input blocking
+
+```csharp
+public class PauseMenu : Component
+{
+    private InputContext _pauseContext;
+    private IInputService _input;
+    private bool _isPaused;
+
+    protected override void OnStart()
+    {
+        _input = CoreServiceRegistry.Get<IInputService>();
+
+        // Highest priority, consumes ALL input except menu actions
+        _pauseContext = new InputContext("pause", 200)
+            .WithActions("menu_select", "menu_back", "menu_navigate", "menu_up", "menu_down")
+            .WithConsumesInput(true);
+
+        EnhancedInput.Pause.OnTriggered += TogglePause;
+    }
+
+    protected override void OnDestroy()
+    {
+        EnhancedInput.Pause.OnTriggered -= TogglePause;
+    }
+
+    void TogglePause()
+    {
+        if (_isPaused)
+            Resume();
+        else
+            Pause();
+    }
+
+    void Pause()
+    {
+        _isPaused = true;
+        _input.Contexts.Push(_pauseContext);
+
+        // Pause game
+        Time.TimeScale = 0f;
+        ShowPauseMenu();
+    }
+
+    void Resume()
+    {
+        _isPaused = false;
+        _input.Contexts.Pop("pause");
+
+        // Resume game
+        Time.TimeScale = 1f;
+        HidePauseMenu();
+    }
+}
+```
+
+---
+
+## Vehicle controls
+
+### Enter/exit vehicle with context switching
+
+```csharp
+public class VehicleController : Component
+{
+    [Property] public GameObject Driver { get; set; }
+
+    private InputContext _vehicleContext;
+    private IInputService _input;
+    private bool _isOccupied;
+
+    protected override void OnStart()
+    {
+        _input = CoreServiceRegistry.Get<IInputService>();
+
+        // Vehicle control context
+        _vehicleContext = new InputContext("vehicle", 20)
+            .WithActions("accelerate", "brake", "steer", "exit_vehicle", "handbrake")
+            .WithBlockedActions("jump", "fire", "interact") // Can't do player actions in vehicle
+            .WithConsumesInput(false); // Allow menu to open
+
+        // Subscribe to input
+        EnhancedInput.ExitVehicle.OnTriggered += ExitVehicle;
+    }
+
+    public void EnterVehicle(GameObject driver)
+    {
+        Driver = driver;
+        _isOccupied = true;
+
+        // Disable player context, enable vehicle context
+        _input.Contexts.SetEnabled("player", false);
+        _input.Contexts.Push(_vehicleContext);
+
+        // Subscribe to vehicle inputs
+        EnhancedInput.Accelerate.OnEvent += HandleAccelerate;
+        EnhancedInput.Steer.OnEvent += HandleSteer;
+    }
+
+    void ExitVehicle()
+    {
+        if (!_isOccupied)
+            return;
+
+        // Re-enable player context, remove vehicle context
+        _input.Contexts.Pop("vehicle");
+        _input.Contexts.SetEnabled("player", true);
+
+        // Unsubscribe from vehicle inputs
+        EnhancedInput.Accelerate.OnEvent -= HandleAccelerate;
+        EnhancedInput.Steer.OnEvent -= HandleSteer;
+
+        // Eject driver
+        SpawnDriverAtDoor(Driver);
+        Driver = null;
+        _isOccupied = false;
+    }
+
+    void HandleAccelerate(InputActionEvent evt)
+    {
+        var throttle = evt.Value.GetFloat();
+        ApplyThrottle(throttle);
+    }
+
+    void HandleSteer(InputActionEvent evt)
+    {
+        var steer = evt.Value.GetFloat();
+        ApplySteer(steer);
+    }
+}
+```
+
+---
+
+## Advanced patterns
+
+### Multi-phase action (tap vs hold)
+
+```csharp
+public class ComboAttack : InputComponent
+{
+    [Property] public float TapDamage { get; set; } = 10f;
+    [Property] public float HoldDamage { get; set; } = 30f;
+
+    protected override void RegisterInputBindings()
+    {
+        // Action has BOTH Tap and Hold triggers
+        // Tap: 0.2s
+        // Hold: 0.5s
+        Bind(EnhancedInput.Attack)
+            .OnStarted(OnAttackStart)
+            .OnCompleted(OnAttackComplete);
+    }
+
+    void OnAttackStart()
+    {
+        // Visual feedback
+        ShowAttackWind up();
+    }
+
+    void OnAttackComplete()
+    {
+        var holdTime = EnhancedInput.Attack.HoldTime;
+
+        if (holdTime < 0.2f)
+        {
+            // Tap succeeded - quick attack
+            PerformLightAttack(TapDamage);
+        }
+        else if (holdTime >= 0.5f)
+        {
+            // Hold succeeded - heavy attack
+            PerformHeavyAttack(HoldDamage);
+        }
+        // Between 0.2s and 0.5s: no attack (tap failed, hold not ready)
+    }
+}
+```
+
+### Contextual actions (same button, different contexts)
+
+```csharp
+public class ContextualInteract : InputComponent
+{
+    private IInputService _input;
+
+    protected override void OnStart()
+    {
+        _input = CoreServiceRegistry.Get<IInputService>();
+    }
+
+    protected override void RegisterInputBindings()
+    {
+        // Same "Interact" button does different things
+        Bind(EnhancedInput.Interact).OnTriggered(HandleInteract);
+    }
+
+    void HandleInteract()
+    {
+        // Check active context to determine behavior
+        var activeContext = GetHighestPriorityContext();
+
+        switch (activeContext)
+        {
+            case "gameplay":
+                InteractWithWorld();
+                break;
+
+            case "dialog":
+                AdvanceDialog();
+                break;
+
+            case "shop":
+                PurchaseItem();
+                break;
+
+            case "vehicle":
+                ExitVehicle();
+                break;
+        }
+    }
+
+    string GetHighestPriorityContext()
+    {
+        var contexts = _input.Contexts.AllContexts
+            .Where(c => c.IsEnabled)
+            .OrderByDescending(c => c.Priority);
+
+        return contexts.FirstOrDefault()?.Id ?? "gameplay";
+    }
+}
+```
+
+---
+
+## Testing patterns
+
+### Mock input service
+
+```csharp
+public class MockInputService : IInputService
+{
+    private Dictionary<string, InputActionState> _states = new();
+
+    public void SimulateAction(string actionName, InputActionPhase phase, InputValue value = default)
+    {
+        var evt = new InputActionEvent
+        {
+            ActionName = actionName,
+            Phase = phase,
+            Value = value,
+            Timestamp = Time.Now,
+            IsActive = value.IsActive
+        };
+
+        OnActionEvent?.Invoke(evt);
+    }
+
+    public void SimulatePress(string actionName)
+    {
+        SimulateAction(actionName, InputActionPhase.Started);
+        SimulateAction(actionName, InputActionPhase.Triggered);
+    }
+
+    public void SimulateRelease(string actionName)
+    {
+        SimulateAction(actionName, InputActionPhase.Completed);
+    }
+
+    // Implement IInputService interface...
+    public event Action<InputActionEvent>? OnActionEvent;
+    // ... rest of interface
+}
+```
+
+### Unit test example
+
+```csharp
+[Test]
+public void PlayerJumps_WhenJumpPressed()
+{
+    // Arrange
+    var mockInput = new MockInputService();
+    var player = new PlayerController
+    {
+        InputService = mockInput
+    };
+    player.OnStart();
+
+    // Act
+    mockInput.SimulatePress("jump");
+
+    // Assert
+    Assert.IsTrue(player.IsJumping);
+    Assert.Greater(player.Velocity.z, 0);
+}
+```
+
+---
+
+## Performance tips
+
+<AccordionGroup>
+  <Accordion title="Events vs polling" icon="bolt">
+    **Use events for discrete actions:**
+    ```csharp
+    // ✅ Good - event-based
+    Bind(EnhancedInput.Jump).OnTriggered(Jump);
+    ```
+
+    **Use polling for continuous state:**
+    ```csharp
+    // ✅ Good - polling in update
+    var move = EnhancedInput.Move.Value;
+    ```
+  </Accordion>
+
+  <Accordion title="Cache service references" icon="database">
+    ```csharp
+    // ❌ Bad - repeated lookups
+    void Update()
+    {
+        var input = CoreServiceRegistry.Get<IInputService>();
+        // ...
+    }
+
+    // ✅ Good - cache reference
+    private IInputService _input;
+
+    void Start()
+    {
+        _input = CoreServiceRegistry.Get<IInputService>();
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Unsubscribe when disabled" icon="power-off">
+    ```csharp
+    // ✅ InputComponent handles this automatically
+    public class Player : InputComponent
+    {
+        protected override void RegisterInputBindings()
+        {
+            Bind(EnhancedInput.Jump).OnTriggered(Jump);
+            // Automatically unsubscribes on disable
+        }
+    }
+
+    // Manual subscription - must unsubscribe
+    protected override void OnEnabled()
+    {
+        EnhancedInput.Jump.OnTriggered += Jump;
+    }
+
+    protected override void OnDisabled()
+    {
+        EnhancedInput.Jump.OnTriggered -= Jump;
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={3}>
+  <Card title="Actions" icon="bolt" href="/corelib/input/actions">
+    Action types and API
+  </Card>
+  <Card title="Contexts" icon="layer-group" href="/corelib/input/contexts">
+    Context management
+  </Card>
+  <Card title="Debugging" icon="bug" href="/corelib/input/debugging">
+    Troubleshooting guide
+  </Card>
+</CardGroup>

@@ -1,0 +1,463 @@
+---
+title: "Getting Started"
+icon: "rocket"
+description: "Step-by-step guide to setting up Enhanced Input in your project"
+---
+
+This guide walks you through setting up Enhanced Input from scratch.
+
+---
+
+## Prerequisites
+
+<Note>
+Enhanced Input is part of CoreLib. Ensure your project has CoreLib integrated and `CoreRoot` is set up in your scene.
+</Note>
+
+---
+
+## 1. Set up InputModule
+
+The `InputModule` component manages the Enhanced Input system lifecycle.
+
+<Steps>
+  <Step title="Add InputModule to CoreRoot">
+    In your scene hierarchy, add `InputModule` as a child of your `CoreRoot` GameObject:
+
+    ```
+    GameObject: CoreRoot
+    ├─ Component: CoreRoot
+    ├─ Component: InputModule
+    ├─ Component: RealmModule
+    └─ ... other CoreLib modules
+    ```
+  </Step>
+
+  <Step title="Configure InputModule">
+    In the Inspector, configure these properties:
+    - **Auto Load Resources**: `true` (automatically loads .inputact and .inputcon resources)
+    - **Validate On Load**: `true` (logs warnings for configuration issues)
+  </Step>
+</Steps>
+
+<Info>
+InputModule automatically:
+- Registers `IInputService` with CoreContext
+- Auto-loads `.inputact` and `.inputcon` resources from ResourceLibrary
+- Provides hot-reload support
+- Initializes static APIs (InputApi, ContextApi)
+</Info>
+
+---
+
+## 2. Create your first input action
+
+<Steps>
+  <Step title="Open the Input Editor">
+    The Input Editor is a specialized workbench for managing Enhanced Input assets. Open it by:
+    - Searching for "Input Editor" in the editor's window/tool menu
+    - Or double-clicking any existing `.inputact` or `.inputcon` file
+
+    The Input Editor has two main docks:
+    - **Asset Browser** (left) - Browse and create actions/contexts
+    - **Inspector** (right) - Configure selected asset
+  </Step>
+
+  <Step title="Create a new action">
+    In the **Asset Browser** dock (left side):
+    1. Find the **Actions** section
+    2. Click the **+** button next to "Actions"
+    3. Type `jump` and press Enter
+  </Step>
+
+  <Step title="Configure the action">
+    In the **Inspector** dock (right side):
+
+    | Property | Value | Description |
+    |----------|-------|-------------|
+    | **S&box Action** | `jump` | Must match your project's input bindings |
+    | **Value Type** | `Bool` | For button inputs (Bool, Float, Vector2, Vector3) |
+    | **Triggers** | `[Pressed]` | When the action fires (defaults to Press) |
+    | **Modifiers** | `[]` | Transformations to apply (optional) |
+  </Step>
+
+  <Step title="Save">
+    Press **Ctrl+S** or use the File menu to save. This **automatically generates** typed handles - no manual code generation needed!
+  </Step>
+</Steps>
+
+<Tip>
+**S&box Action** must match an action defined in your project's input settings. Common s&box actions include:
+- `jump`, `attack1`, `attack2`
+- `forward`, `backward`, `left`, `right`
+- `run`, `walk`, `duck`, `menu`
+- `slot1`, `slot2`, etc.
+</Tip>
+
+---
+
+## 3. Create a movement action with modifiers
+
+Let's create a more complex action with a deadzone modifier.
+
+<Steps>
+  <Step title="Create move action">
+    In the Input Editor's **Asset Browser** dock:
+    1. Click the **+** button next to "Actions"
+    2. Type `move` and press Enter
+  </Step>
+
+  <Step title="Configure basic properties">
+    In the **Inspector** dock:
+
+    | Property | Value |
+    |----------|-------|
+    | **S&box Action** | `move` |
+    | **Value Type** | `Vector2` |
+  </Step>
+
+  <Step title="Add Deadzone modifier">
+    In the **Modifiers** section of the Inspector:
+    1. Click **Add Modifier** → **Deadzone**
+    2. Configure:
+       - **Lower Threshold**: `0.2` (ignore inputs below 20% magnitude)
+       - **Type**: `Radial` (magnitude-based deadzone)
+  </Step>
+
+  <Step title="Add Scale modifier">
+    Click **Add Modifier** → **Scale**
+    - **X**: `1.0`
+    - **Y**: `1.0`
+
+    <Info>
+    Modifiers are applied in order. Here: Deadzone → Scale
+    </Info>
+  </Step>
+
+  <Step title="Save">
+    Press **Ctrl+S** to save and auto-generate code.
+  </Step>
+</Steps>
+
+---
+
+## 4. Verify auto-generated typed handles
+
+Saving in the Input Editor **automatically generates** typed handles for type safety and IntelliSense.
+
+<Steps>
+  <Step title="Check generated file">
+    The system creates `EnhancedInput.Generated.cs`:
+
+    ```csharp
+    public static partial class EnhancedInput
+    {
+        /// <summary>Jump action</summary>
+        public static BoolAction Jump { get; } = new("jump");
+
+        /// <summary>Move action</summary>
+        public static Vector2Action Move { get; } = new("move");
+    }
+    ```
+  </Step>
+
+  <Step title="Manual regeneration (if needed)">
+    If auto-generation fails, manually trigger it:
+
+    **Editor → Enhanced Input → Regenerate Input Code**
+
+    <Info>
+    You typically don't need manual regeneration - the Input Editor handles this automatically when saving.
+    </Info>
+  </Step>
+</Steps>
+
+<Tip>
+Code regenerates automatically when you:
+- Save changes in the Input Editor
+- Create new actions or contexts
+- These operations call the code generator internally
+</Tip>
+
+---
+
+## 5. Bind actions in your code
+
+Now use the actions in your gameplay code.
+
+<Tabs>
+  <Tab title="Component-based (Recommended)">
+    Use `InputComponent` for automatic lifecycle management:
+
+    ```csharp
+    using CoreLib.EnhancedInput.Api;
+
+    public class PlayerController : InputComponent
+    {
+        protected override void RegisterInputBindings()
+        {
+            // Bind discrete actions (events)
+            Bind(EnhancedInput.Jump).OnTriggered(OnJump);
+        }
+
+        protected override void OnUpdate()
+        {
+            // Poll continuous state
+            var move = EnhancedInput.Move.Value;
+            CharacterController.Move(move * MoveSpeed * Time.Delta);
+        }
+
+        void OnJump()
+        {
+            if (IsGrounded)
+                Velocity += Vector3.Up * JumpForce;
+        }
+    }
+    ```
+
+    **Benefits:**
+    - Automatic binding/unbinding on Enable/Disable
+    - Clean fluent API
+    - No manual cleanup required
+  </Tab>
+
+  <Tab title="Static API">
+    Use static event subscription:
+
+    ```csharp
+    using CoreLib.EnhancedInput.Api;
+
+    public class PlayerController : Component
+    {
+        protected override void OnEnabled()
+        {
+            EnhancedInput.Jump.OnTriggered += OnJump;
+        }
+
+        protected override void OnDisabled()
+        {
+            EnhancedInput.Jump.OnTriggered -= OnJump;
+        }
+
+        protected override void OnUpdate()
+        {
+            var move = EnhancedInput.Move.Value;
+            CharacterController.Move(move * MoveSpeed * Time.Delta);
+        }
+
+        void OnJump()
+        {
+            if (IsGrounded)
+                Velocity += Vector3.Up * JumpForce;
+        }
+    }
+    ```
+
+    **Use when:**
+    - You need manual control over subscription lifecycle
+    - Component inheritance is not suitable
+  </Tab>
+
+  <Tab title="Service injection">
+    Use `IInputService` for maximum flexibility:
+
+    ```csharp
+    var inputService = CoreServiceRegistry.Get<IInputService>();
+
+    var subscription = inputService.Subscribe("jump", evt =>
+    {
+        if (evt.Phase == InputActionPhase.Triggered)
+        {
+            Jump();
+        }
+    });
+
+    // Later: subscription.Dispose();
+    ```
+
+    **Use when:**
+    - Building framework-level code
+    - Need to work with action names dynamically
+    - Implementing custom input abstractions
+  </Tab>
+</Tabs>
+
+---
+
+## 6. Create an input context (Optional)
+
+For games with UI overlays or mode switching, create contexts to group and prioritize actions.
+
+<Steps>
+  <Step title="Create context in Input Editor">
+    In the Input Editor's **Asset Browser** dock:
+    1. Find the **Contexts** section
+    2. Click the **+** button next to "Contexts"
+    3. Type `gameplay` and press Enter
+  </Step>
+
+  <Step title="Configure context">
+    In the **Inspector** dock:
+
+    | Property | Value | Description |
+    |----------|-------|-------------|
+    | **Priority** | `10` | 0-49 for gameplay, 50-99 for menus, 100+ for UI overlays |
+    | **Actions** | Select actions | Actions this context handles |
+    | **Blocked Actions** | `[]` | Actions to consume without dispatching |
+    | **Consumes Input** | `false` | If true, blocks all lower-priority contexts |
+    | **Auto Load** | `true` | Load at startup |
+    | **Load Order** | `0` | Initialization order for auto-loaded contexts |
+  </Step>
+
+  <Step title="Save">
+    Press **Ctrl+S** to save and auto-generate code.
+  </Step>
+
+  <Step title="Create UI context">
+    Repeat for `inventory_ui`:
+    1. Click **+** next to "Contexts"
+    2. Name it `inventory_ui`
+    3. Configure:
+       - **Priority**: `100`
+       - **Actions**: `[menu_back, menu_select]`
+       - **Blocked Actions**: `[jump, fire, interact]`
+       - **Consumes Input**: `true`
+       - **Auto Load**: `false`
+    4. Save (Ctrl+S)
+  </Step>
+</Steps>
+
+<Info>
+**Priority ranges (suggested):**
+- **100+**: UI overlays (inventory, pause menu, dialogs)
+- **50-99**: Modal states (menus, cutscenes)
+- **0-49**: Gameplay (player control, vehicle control)
+</Info>
+
+---
+
+## 7. Manage contexts at runtime
+
+Push and pop contexts dynamically:
+
+```csharp
+using CoreLib.EnhancedInput.Api;
+
+public class InventoryUI : Component
+{
+    private InputContext _inventoryContext;
+    private IInputService _input;
+
+    protected override void OnStart()
+    {
+        _input = CoreServiceRegistry.Get<IInputService>();
+
+        // Create context
+        _inventoryContext = new InputContext("inventory", 100)
+            .WithActions("menu_select", "menu_back")
+            .WithBlockedActions("jump", "fire", "interact")
+            .WithConsumesInput(true);
+    }
+
+    public void Open()
+    {
+        _input.Contexts.Push(_inventoryContext);
+        // UI blocks gameplay input automatically
+    }
+
+    public void Close()
+    {
+        _input.Contexts.Pop("inventory");
+        // Gameplay input restored
+    }
+}
+```
+
+---
+
+## Complete example
+
+Here's a complete player controller putting it all together:
+
+```csharp
+using CoreLib.EnhancedInput.Api;
+
+public class PlayerController : InputComponent
+{
+    [Property] public float MoveSpeed { get; set; } = 300f;
+    [Property] public float JumpForce { get; set; } = 500f;
+
+    private CharacterController _character;
+    private bool _isSprinting;
+
+    protected override void OnAwake()
+    {
+        _character = GetComponent<CharacterController>();
+    }
+
+    protected override void RegisterInputBindings()
+    {
+        // Discrete actions (events)
+        Bind(EnhancedInput.Jump).OnTriggered(Jump);
+        Bind(EnhancedInput.Interact).OnTriggered(TryInteract);
+
+        // Sprint toggle
+        Bind(EnhancedInput.Sprint)
+            .OnStarted(() => _isSprinting = true)
+            .OnCompleted(() => _isSprinting = false);
+    }
+
+    protected override void OnUpdate()
+    {
+        // Continuous state (polling)
+        var moveInput = EnhancedInput.Move.Value;
+        var lookInput = EnhancedInput.Look.Value;
+
+        // Apply movement
+        var speed = _isSprinting ? MoveSpeed * 1.5f : MoveSpeed;
+        var wishVel = new Vector3(moveInput.x, 0, moveInput.y) * speed;
+        _character.Move(wishVel * Time.Delta);
+
+        // Apply camera rotation
+        var lookAngles = new Angles(0, lookInput.x, 0);
+        _character.EyeAngles += lookAngles * Time.Delta;
+    }
+
+    void Jump()
+    {
+        if (_character.IsOnGround)
+            _character.Velocity += Vector3.Up * JumpForce;
+    }
+
+    void TryInteract()
+    {
+        var trace = Scene.Trace
+            .Ray(_character.EyePosition, _character.EyeRotation.Forward * 100f)
+            .Run();
+
+        if (trace.Hit && trace.GameObject.Components.TryGet<IInteractable>(out var interactable))
+        {
+            interactable.Interact(this);
+        }
+    }
+}
+```
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Learn about Actions" icon="bolt" href="/corelib/input/actions">
+    Deep dive into action types and phases
+  </Card>
+  <Card title="Explore Modifiers" icon="sliders" href="/corelib/input/modifiers">
+    Transform input with modifiers
+  </Card>
+  <Card title="Master Triggers" icon="hand-pointer" href="/corelib/input/triggers">
+    Configure complex trigger patterns
+  </Card>
+  <Card title="Usage Patterns" icon="code" href="/corelib/input/usage-patterns">
+    Common implementation patterns
+  </Card>
+</CardGroup>

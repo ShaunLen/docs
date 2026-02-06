@@ -1,0 +1,513 @@
+---
+title: "Debugging"
+icon: "bug"
+description: "Troubleshooting Execution Realms issues"
+---
+
+This guide helps you diagnose and fix common Execution Realms issues.
+
+---
+
+## Enable verbose logging
+
+In the RealmModule inspector, check **Verbose Logging**:
+
+**Logs include:**
+- Handler registration/unregistration
+- Command execution and routing
+- RPC send/receive events
+- Validation failures
+- Serialization errors
+
+---
+
+## Common issues
+
+<AccordionGroup>
+  <Accordion title="Command type not registered" icon="triangle-exclamation">
+    **Error:** `Command type 'MyCommand' is not registered in CommandTypeRegistry`
+
+    **Cause:** Forgot to register the command type in `RegisterCommandTypes()`
+
+    **Fix:**
+    ```csharp
+    public class MyGameRealmModule : RealmModule
+    {
+        protected override void RegisterCommandTypes()
+        {
+            CommandTypeRegistry.Register<MyCommand>(); // Add this
+            // ... other registrations
+        }
+    }
+    ```
+
+    <Tip>
+    Register commands **before** you try to execute them. Best practice: register all commands at startup.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Handler not executing" icon="circle-xmark">
+    **Symptoms:**
+    - Command executes without errors
+    - Handler never fires
+    - No logs showing handler execution
+
+    **Checklist:**
+
+    <Steps>
+      <Step title="Verify handler is in scene">
+        Check that the handler component exists on a GameObject in your scene.
+      </Step>
+
+      <Step title="Check GameObject is enabled">
+        Both the GameObject and the component must be enabled.
+      </Step>
+
+      <Step title="Verify handler registered">
+        Look for console log: `[RealmService] Registered handler for MyCommand`
+      </Step>
+
+      <Step title="Check handler base class">
+        Ensure you're calling `base.OnEnabled()`:
+
+        ```csharp
+        protected override void OnEnabled()
+        {
+            base.OnEnabled(); // ← Don't forget this!
+            // Your code...
+        }
+        ```
+      </Step>
+
+      <Step title="Verify command type matches">
+        Handler and command type must match exactly (including namespace):
+
+        ```csharp
+        // Command
+        namespace MyGame.Commands;
+        public struct MyCommand : IRealmCommand { }
+
+        // Handler - namespace must match!
+        namespace MyGame.Commands;
+        public class MyCommandHandler : RealmCommandHandler<MyCommand> { }
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="RPC fails" icon="wifi-slash">
+    **Symptoms:**
+    - Commands work locally but not over network
+    - No errors, but other clients don't receive command
+
+    **Common causes:**
+
+    | Issue | Cause | Fix |
+    |-------|-------|-----|
+    | RealmModule missing | Not in scene | Add RealmModule component |
+    | RealmTransport missing | Module didn't create it | Check logs for errors |
+    | Serialization failure | Command contains non-serializable type | Remove GameObject references |
+    | Wrong realm | Client trying to broadcast | Use Server realm, let server broadcast |
+
+    **Debug steps:**
+    1. Enable verbose logging
+    2. Check console for RPC send/receive messages
+    3. Verify command serializes: `JsonSerializer.Serialize(command)`
+    4. Test in single-player first (no networking)
+  </Accordion>
+
+  <Accordion title="Serialization errors" icon="code">
+    **Error:** `Error serializing command: ...`
+
+    **Common causes:**
+
+    ```csharp
+    // ❌ GameObject reference (won't serialize)
+    public struct MyCommand : IRealmCommand
+    {
+        public GameObject Target { get; set; }
+    }
+
+    // ❌ Component reference (won't serialize)
+    public struct MyCommand : IRealmCommand
+    {
+        public PlayerController Player { get; set; }
+    }
+
+    // ❌ Delegate (won't serialize)
+    public struct MyCommand : IRealmCommand
+    {
+        public Action Callback { get; set; }
+    }
+
+    // ✅ Use GUIDs instead
+    public struct MyCommand : IRealmCommand
+    {
+        public Guid TargetId { get; set; }
+    }
+    ```
+
+    **Fix:** Replace object references with IDs (Guid, int, string).
+  </Accordion>
+
+  <Accordion title="Handler throws exception" icon="circle-exclamation">
+    **Symptoms:**
+    - Handler executes but throws exception
+    - Partial state changes before crash
+
+    **Debug:**
+
+    ```csharp
+    protected override void OnHandle(in MyCommand cmd, RealmContext ctx)
+    {
+        try
+        {
+            // Your logic
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Handler failed: {ex.Message}");
+            Log.Error(ex.StackTrace);
+        }
+    }
+    ```
+
+    **Common issues:**
+    - Null reference (entity not found)
+    - Division by zero
+    - Invalid cast
+    - Array index out of bounds
+  </Accordion>
+
+  <Accordion title="Commands execute on wrong realm" icon="arrows-spin">
+    **Symptoms:**
+    - Damage applies on both client and server (double damage!)
+    - UI updates on server
+    - Logic runs in wrong context
+
+    **Cause:** Missing realm guards
+
+    **Fix:**
+    ```csharp
+    // ❌ Bad - runs everywhere
+    protected override void OnHandle(in DamageCommand cmd, RealmContext ctx)
+    {
+        ApplyDamage(cmd.Amount); // Runs on all realms!
+    }
+
+    // ✅ Good - only runs on server
+    protected override void OnHandle(in DamageCommand cmd, RealmContext ctx)
+    {
+        ctx.RequireServer(); // Guard
+        ApplyDamage(cmd.Amount);
+    }
+
+    // ✅ Good - conditional logic
+    protected override void OnHandle(in MyCommand cmd, RealmContext ctx)
+    {
+        if (ctx.IsServer)
+        {
+            // Server-only logic
+        }
+
+        if (ctx.IsClient)
+        {
+            // Client-only logic
+        }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Diagnostic logging
+
+### Log command execution
+
+```csharp
+public class MyCommandHandler : RealmCommandHandler<MyCommand>
+{
+    protected override void OnHandle(in MyCommand cmd, RealmContext ctx)
+    {
+        Log.Info($"[MyCommand] Executing on realm: {ctx.ExecutionRealm}");
+        Log.Info($"  IsServer: {ctx.IsServer}, IsClient: {ctx.IsClient}");
+        Log.Info($"  Sender: {ctx.Sender?.DisplayName ?? "null"}");
+        Log.Info($"  Command data: {JsonSerializer.Serialize(cmd)}");
+
+        // Handler logic...
+    }
+}
+```
+
+### Log registration
+
+```csharp
+protected override void OnEnabled()
+{
+    base.OnEnabled();
+    Log.Info($"[{GetType().Name}] Handler registered");
+}
+
+protected override void OnDisabled()
+{
+    Log.Info($"[{GetType().Name}] Handler unregistered");
+    base.OnDisabled();
+}
+```
+
+---
+
+## Testing commands
+
+### Unit test commands
+
+```csharp
+[Test]
+public void Command_SerializesCorrectly()
+{
+    var command = new DealDamageRequest
+    {
+        TargetId = Guid.NewGuid(),
+        Amount = 25f
+    };
+
+    var json = JsonSerializer.Serialize(command);
+    var deserialized = JsonSerializer.Deserialize<DealDamageRequest>(json);
+
+    Assert.AreEqual(command.TargetId, deserialized.TargetId);
+    Assert.AreEqual(command.Amount, deserialized.Amount);
+}
+```
+
+### Integration test handlers
+
+```csharp
+[Test]
+public void Handler_ValidatesDamage()
+{
+    var handler = new DealDamageRequestHandler();
+    var wasApplied = false;
+
+    var command = new DealDamageRequest
+    {
+        TargetId = Guid.NewGuid(),
+        Amount = -10f // Invalid!
+    };
+
+    var context = new RealmContext
+    {
+        IsServer = true,
+        Sender = MockConnection.Create()
+    };
+
+    // Should reject negative damage
+    handler.TestHandle(command, context);
+
+    Assert.IsFalse(wasApplied);
+}
+```
+
+---
+
+## Performance profiling
+
+### Measure command throughput
+
+```csharp
+public class PerformanceMonitor : Component
+{
+    private int _commandsThisSecond;
+    private float _lastSecond;
+
+    protected override void OnUpdate()
+    {
+        if (Time.Now - _lastSecond >= 1f)
+        {
+            Log.Info($"Commands per second: {_commandsThisSecond}");
+            _commandsThisSecond = 0;
+            _lastSecond = Time.Now;
+        }
+    }
+
+    // Call this from your handlers
+    public void RecordCommand()
+    {
+        _commandsThisSecond++;
+    }
+}
+```
+
+### Measure handler execution time
+
+```csharp
+public class MyCommandHandler : RealmCommandHandler<MyCommand>
+{
+    private System.Diagnostics.Stopwatch _stopwatch = new();
+
+    protected override void OnHandle(in MyCommand cmd, RealmContext ctx)
+    {
+        _stopwatch.Restart();
+
+        // Handler logic...
+
+        _stopwatch.Stop();
+
+        if (_stopwatch.Elapsed.TotalMilliseconds > 5.0)
+        {
+            Log.Warning($"Slow handler: {_stopwatch.Elapsed.TotalMilliseconds:F2}ms");
+        }
+    }
+}
+```
+
+---
+
+## Network debugging
+
+### Check RPC send/receive
+
+With verbose logging enabled, you'll see:
+
+```
+[RealmTransport] Sending command to server: DealDamageRequest
+[RealmTransport] Server received command: DealDamageRequest from Player1
+[RealmTransport] Broadcasting to all clients: DamageDealtEvent
+[RealmTransport] Client received command: DamageDealtEvent
+```
+
+### Test network conditions
+
+```csharp
+// Simulate network lag (development only)
+public class NetworkSimulator : Component
+{
+    public float SimulatedLatencyMs { get; set; } = 100f;
+
+    public async void SendWithLatency<T>(T command) where T : struct, IRealmCommand
+    {
+        await Task.DelayMilliseconds((int)SimulatedLatencyMs);
+        RealmRouter.ExecuteOnServer(command);
+    }
+}
+```
+
+---
+
+## Best practices for debugging
+
+<CardGroup cols={2}>
+  <Card title="Start simple" icon="1">
+    Test with LocalClient first:
+    - No networking
+    - Easier to debug
+    - Faster iteration
+
+    Then add Server, then AllClients.
+  </Card>
+
+  <Card title="Log liberally" icon="2">
+    Add logging to:
+    - Handler entry points
+    - Validation checks
+    - Error paths
+    - State changes
+  </Card>
+
+  <Card title="Test in single-player" icon="3">
+    Single-player removes networking complexity:
+    - All realms execute locally
+    - No RPC errors
+    - Easier to isolate logic bugs
+  </Card>
+
+  <Card title="Use verbose logging" icon="4">
+    Enable it during development:
+    - See all registrations
+    - Track command flow
+    - Identify missing handlers
+  </Card>
+</CardGroup>
+
+---
+
+## Troubleshooting checklist
+
+When a command doesn't work:
+
+<Steps>
+  <Step title="Is the command type registered?">
+    Check `RegisterCommandTypes()` in your RealmModule subclass.
+  </Step>
+
+  <Step title="Is the handler in the scene?">
+    Verify component exists and is enabled.
+  </Step>
+
+  <Step title="Does the handler register?">
+    Look for registration log messages.
+  </Step>
+
+  <Step title="Is the command serializable?">
+    Try: `JsonSerializer.Serialize(command)`
+  </Step>
+
+  <Step title="Are you using the right realm?">
+    - LocalClient for UI updates
+    - Server for authoritative logic
+    - AllClients for broadcasts (server only)
+  </Step>
+
+  <Step title="Are realm guards in place?">
+    Use `ctx.RequireServer()` for server-only logic.
+  </Step>
+
+  <Step title="Check console for errors">
+    Look for serialization errors, RPC failures, exceptions.
+  </Step>
+</Steps>
+
+---
+
+## Getting help
+
+If you're still stuck:
+
+<Steps>
+  <Step title="Gather information">
+    - Console logs (with verbose logging enabled)
+    - Command definition (code)
+    - Handler definition (code)
+    - Registration code
+    - Execution code
+    - Expected vs actual behavior
+  </Step>
+
+  <Step title="Create minimal reproduction">
+    Strip down to simplest case that reproduces the issue.
+  </Step>
+
+  <Step title="Check CLAUDE.md">
+    Verify your setup matches project conventions.
+  </Step>
+
+  <Step title="Ask the team">
+    Provide gathered information and minimal reproduction.
+  </Step>
+</Steps>
+
+---
+
+## Related pages
+
+<CardGroup cols={3}>
+  <Card title="Getting Started" icon="rocket" href="/corelib/realms/getting-started">
+    Setup guide
+  </Card>
+  <Card title="Patterns" icon="diagram-project" href="/corelib/realms/patterns">
+    Working examples
+  </Card>
+  <Card title="Commands" icon="code" href="/corelib/realms/commands">
+    Command reference
+  </Card>
+</CardGroup>

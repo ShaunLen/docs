@@ -49,30 +49,11 @@ Runtime code must **never** reference editor assemblies. This separation must be
 
 ---
 
-## Namespace conventions
+## Namespace and folder conventions
 
 <Tip>
-Namespaces **must** match folder structure exactly.
+Namespaces **must** match folder structure exactly. See the [Folder Structure](/handbook/folder-structure) page for comprehensive project organization guidelines.
 </Tip>
-
-```
-CoreLib/
-├── Input/
-│   ├── InputContext.cs           // CoreLib.Input
-│   ├── InputBinding.cs           // CoreLib.Input
-│   └── Editor/
-│       └── InputEditor.cs        // CoreLib.Input.Editor
-├── Interactions/
-│   ├── InteractionProvider.cs    // CoreLib.Interactions
-│   └── Editor/
-│       └── InteractionEditor.cs  // CoreLib.Interactions.Editor
-```
-
-| Rule | Example |
-|------|---------|
-| Match folders | `CoreLib/Input/` → `CoreLib.Input` |
-| Editor suffix | `CoreLib/Input/Editor/` → `CoreLib.Input.Editor` |
-| No shortcuts | Don't flatten or skip levels |
 
 ---
 
@@ -380,7 +361,7 @@ The goal is to catch all errors at authoring time so runtime can assume data is 
   <Card title="Design Guidelines" icon="compass-drafting" href="/handbook/design-guidelines">
     Higher-level design principles
   </Card>
-  <Card title="Folder Structure" icon="folder-tree" href="/reference/folder-structure">
+  <Card title="Folder Structure" icon="folder-tree" href="/handbook/folder-structure">
     Detailed project layout conventions
   </Card>
 </CardGroup>

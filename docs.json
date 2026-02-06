@@ -58,7 +58,10 @@
             "group": "Coding standards",
             "pages": [
               "handbook/code-style",
+              "handbook/naming",
               "handbook/architecture-conventions",
+              "handbook/folder-structure",
+              "handbook/terminology",
               "handbook/logging-and-debugging"
             ]
           },
@@ -88,40 +91,25 @@
             "group": "Enhanced Input",
             "pages": [
               "corelib/input/overview",
-              "corelib/input/concepts",
-              "corelib/input/runtime-usage",
-              "corelib/input/rebinding",
-              "corelib/input/debugging",
-              "corelib/input/best-practices"
+              "corelib/input/getting-started",
+              "corelib/input/actions",
+              "corelib/input/modifiers",
+              "corelib/input/triggers",
+              "corelib/input/contexts",
+              "corelib/input/usage-patterns",
+              "corelib/input/debugging"
             ]
           },
           {
-            "group": "Interaction system",
+            "group": "Execution Realms",
             "pages": [
-              "corelib/interactions/overview",
-              "corelib/interactions/concepts",
-              "corelib/interactions/authoring",
-              "corelib/interactions/runtime-flow",
-              "corelib/interactions/ui-prompts",
-              "corelib/interactions/debugging"
-            ]
-          },
-          {
-            "group": "State & events",
-            "pages": [
-              "corelib/state/overview",
-              "corelib/state/shared-state",
-              "corelib/state/events",
-              "corelib/state/patterns"
-            ]
-          },
-          {
-            "group": "Definitions & data",
-            "pages": [
-              "corelib/definitions/overview",
-              "corelib/definitions/stable-ids",
-              "corelib/definitions/authoring",
-              "corelib/definitions/validation"
+              "corelib/realms/overview",
+              "corelib/realms/getting-started",
+              "corelib/realms/commands",
+              "corelib/realms/handlers",
+              "corelib/realms/realms",
+              "corelib/realms/patterns",
+              "corelib/realms/debugging"
             ]
           },
           {
@@ -155,23 +143,7 @@
         ]
       },
       {
-        "tab": "Reference",
-        "groups": [
-          {
-            "group": "Conventions",
-            "pages": [
-              "reference/terminology",
-              "reference/naming",
-              "reference/folder-structure"
-            ]
-          },
-          {
-            "group": "API reference",
-            "pages": [
-              "reference/api/index"
-            ]
-          }
-        ]
+        "tab": "API Reference"
       }
     ]
   },

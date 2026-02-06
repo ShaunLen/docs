@@ -1,0 +1,529 @@
+---
+title: "Commands"
+icon: "code"
+description: "Defining typed commands for network communication"
+---
+
+Commands are the data structures that flow through the Execution Realms system. They're immutable structs that carry information from one realm to another.
+
+---
+
+## IRealmCommand interface
+
+All commands must implement `IRealmCommand`:
+
+```csharp
+public interface IRealmCommand { }
+```
+
+This is a marker interface - it has no methods, but signals that a type can be used as a realm command.
+
+---
+
+## Defining commands
+
+Commands are structs with auto-properties:
+
+```csharp
+using CoreLib.ExecutionRealms;
+
+[RealmCommand(Description = "Player deals damage to target")]
+public struct DealDamageRequest : IRealmCommand
+{
+    public Guid TargetId { get; set; }
+    public float Amount { get; set; }
+    public DamageType Type { get; set; }
+    public Vector3 HitLocation { get; set; }
+}
+```
+
+<Info>
+**Why structs?**
+- Value semantics (immutable by default)
+- Efficient memory layout
+- Clear ownership (no reference confusion)
+- Better for serialization
+</Info>
+
+---
+
+## Naming conventions
+
+Use intent-based naming with descriptive suffixes:
+
+<Tabs>
+  <Tab title="*Request (Client → Server)">
+    **Client requests server to perform an action**
+
+    ```csharp
+    [RealmCommand(TypicalRealm = Realm.Server)]
+    public struct UseItemRequest : IRealmCommand
+    {
+        public Guid ItemId { get; set; }
+        public Guid PlayerId { get; set; }
+    }
+
+    [RealmCommand(TypicalRealm = Realm.Server)]
+    public struct DealDamageRequest : IRealmCommand
+    {
+        public Guid TargetId { get; set; }
+        public float Amount { get; set; }
+    }
+    ```
+
+    **When to use:**
+    - Player actions requiring server validation
+    - Authoritative gameplay events
+    - Any client→server communication
+  </Tab>
+
+  <Tab title="*Event (Server → AllClients)">
+    **Server notifies all clients of an event**
+
+    ```csharp
+    [RealmCommand(TypicalRealm = Realm.AllClients)]
+    public struct PlayerJoinedEvent : IRealmCommand
+    {
+        public Guid PlayerId { get; set; }
+        public string PlayerName { get; set; }
+    }
+
+    [RealmCommand(TypicalRealm = Realm.AllClients)]
+    public struct DamageDealtEvent : IRealmCommand
+    {
+        public Guid TargetId { get; set; }
+        public float FinalDamage { get; set; }
+    }
+    ```
+
+    **When to use:**
+    - Global notifications
+    - Synchronized state changes
+    - Server broadcasts
+  </Tab>
+
+  <Tab title="*Local (LocalClient only)">
+    **Local client feedback without networking**
+
+    ```csharp
+    [RealmCommand(TypicalRealm = Realm.LocalClient)]
+    public struct ShowHitmarkerLocal : IRealmCommand
+    {
+        public Vector3 Position { get; set; }
+        public float Damage { get; set; }
+        public bool IsCritical { get; set; }
+    }
+
+    [RealmCommand(TypicalRealm = Realm.LocalClient)]
+    public struct UpdateHealthUILocal : IRealmCommand
+    {
+        public float CurrentHealth { get; set; }
+        public float MaxHealth { get; set; }
+    }
+    ```
+
+    **When to use:**
+    - UI updates
+    - Visual effects
+    - Local feedback
+    - Non-authoritative actions
+  </Tab>
+</Tabs>
+
+---
+
+## RealmCommand attribute
+
+The `[RealmCommand]` attribute is **optional** and provides metadata:
+
+```csharp
+[RealmCommand(
+    Description = "Player requests to use an item",
+    TypicalRealm = Realm.Server
+)]
+public struct UseItemRequest : IRealmCommand
+{
+    public Guid ItemId { get; set; }
+}
+```
+
+<Note>
+**Attribute properties:**
+- `Description` - Human-readable description (documentation)
+- `TypicalRealm` - Suggested realm (documentation only, not enforced)
+
+The attribute **does not affect behavior** - it's purely for code organization and documentation.
+</Note>
+
+---
+
+## Serialization
+
+Commands are serialized using **System.Text.Json** for network transmission.
+
+### Supported types
+
+<CardGroup cols={2}>
+  <Card title="Primitives" icon="hashtag">
+    - `bool`, `int`, `float`, `double`
+    - `string`, `Guid`, `DateTime`
+    - Enums
+  </Card>
+  <Card title="s&box types" icon="box">
+    - `Vector2`, `Vector3`, `Vector4`
+    - `Rotation`, `Transform`
+    - `Color`, `Color32`
+  </Card>
+  <Card title="Collections" icon="list">
+    - Arrays (`T[]`)
+    - Lists (`List<T>`)
+    - Dictionaries (`Dictionary<K,V>`)
+  </Card>
+  <Card title="Nested structs" icon="layer-group">
+    - Other structs
+    - Value types
+    - Nested collections
+  </Card>
+</CardGroup>
+
+### Not supported
+
+<Warning>
+**These types will NOT serialize:**
+- Object references (`GameObject`, `Component`)
+- Delegates/lambdas
+- Interfaces (except as concrete types)
+- Complex inheritance hierarchies
+</Warning>
+
+### Examples
+
+<Tabs>
+  <Tab title="✅ Good">
+    ```csharp
+    // Use IDs instead of references
+    public struct SpawnEntityCommand : IRealmCommand
+    {
+        public string PrefabId { get; set; }      // ✅ String ID
+        public Vector3 Position { get; set; }     // ✅ s&box type
+        public Rotation Rotation { get; set; }    // ✅ s&box type
+        public Guid OwnerId { get; set; }         // ✅ Guid
+    }
+
+    // Collections work
+    public struct BatchDamageCommand : IRealmCommand
+    {
+        public Guid[] TargetIds { get; set; }     // ✅ Array
+        public List<float> Amounts { get; set; }  // ✅ List
+    }
+
+    // Nested structs work
+    public struct SpawnWithDataCommand : IRealmCommand
+    {
+        public string PrefabId { get; set; }
+        public SpawnData Data { get; set; }       // ✅ Nested struct
+    }
+
+    public struct SpawnData
+    {
+        public Vector3 Position { get; set; }
+        public int Level { get; set; }
+    }
+    ```
+  </Tab>
+
+  <Tab title="❌ Bad">
+    ```csharp
+    // DON'T use object references
+    public struct SpawnEntityCommand : IRealmCommand
+    {
+        public GameObject Prefab { get; set; }    // ❌ Won't serialize!
+        public Transform SpawnPoint { get; set; } // ❌ Won't serialize!
+    }
+
+    // DON'T use complex types
+    public struct ComplexCommand : IRealmCommand
+    {
+        public Action Callback { get; set; }      // ❌ Delegate
+        public IEntity Entity { get; set; }       // ❌ Interface reference
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Best practices
+
+<AccordionGroup>
+  <Accordion title="Keep commands small" icon="compress">
+    **Why:** Smaller commands = less network bandwidth
+
+    ```csharp
+    // ✅ Good - only essential data
+    public struct UseItemRequest : IRealmCommand
+    {
+        public Guid ItemId { get; set; }
+    }
+
+    // ❌ Bad - unnecessary data
+    public struct UseItemRequest : IRealmCommand
+    {
+        public Guid ItemId { get; set; }
+        public string ItemName { get; set; }      // Server knows this
+        public Texture Icon { get; set; }         // Won't serialize!
+        public float Weight { get; set; }         // Server knows this
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Use descriptive names" icon="file-signature">
+    **Why:** Clarity beats brevity
+
+    ```csharp
+    // ✅ Good - clear intent
+    public struct DealDamageRequest : IRealmCommand { }
+    public struct PlayerJoinedEvent : IRealmCommand { }
+
+    // ❌ Bad - unclear
+    public struct DMG : IRealmCommand { }
+    public struct PJ : IRealmCommand { }
+    public struct Command1 : IRealmCommand { }
+    ```
+  </Accordion>
+
+  <Accordion title="Use IDs, not references" icon="fingerprint">
+    **Why:** References don't serialize
+
+    ```csharp
+    // ✅ Good - uses GUID
+    public struct AttackPlayerRequest : IRealmCommand
+    {
+        public Guid AttackerId { get; set; }
+        public Guid TargetId { get; set; }
+    }
+
+    // ❌ Bad - uses object reference
+    public struct AttackPlayerRequest : IRealmCommand
+    {
+        public GameObject Attacker { get; set; }  // Won't work!
+        public GameObject Target { get; set; }    // Won't work!
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Group related commands" icon="folder">
+    **Why:** Organization and discoverability
+
+    ```csharp
+    // Commands/CombatCommands.cs
+    public struct DealDamageRequest : IRealmCommand { }
+    public struct DamageDealtEvent : IRealmCommand { }
+    public struct HealPlayerRequest : IRealmCommand { }
+    public struct PlayerHealedEvent : IRealmCommand { }
+
+    // Commands/InventoryCommands.cs
+    public struct UseItemRequest : IRealmCommand { }
+    public struct ItemUsedEvent : IRealmCommand { }
+    public struct DropItemRequest : IRealmCommand { }
+    ```
+  </Accordion>
+
+  <Accordion title="Document with [RealmCommand]" icon="book">
+    **Why:** Self-documenting code
+
+    ```csharp
+    [RealmCommand(
+        Description = "Player requests to pick up an item from the world",
+        TypicalRealm = Realm.Server
+    )]
+    public struct PickUpItemRequest : IRealmCommand
+    {
+        public Guid ItemId { get; set; }
+        public Guid PlayerId { get; set; }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Registration
+
+**CRITICAL:** All commands must be registered in your `RealmModule` subclass:
+
+```csharp
+public class MyGameRealmModule : RealmModule
+{
+    protected override void RegisterCommandTypes()
+    {
+        // Combat
+        CommandTypeRegistry.Register<DealDamageRequest>();
+        CommandTypeRegistry.Register<DamageDealtEvent>();
+
+        // Inventory
+        CommandTypeRegistry.Register<UseItemRequest>();
+        CommandTypeRegistry.Register<ItemUsedEvent>();
+
+        // UI
+        CommandTypeRegistry.Register<ShowNotificationLocal>();
+    }
+}
+```
+
+<Warning>
+**Forgetting registration causes:** `Command type 'MyCommand' is not registered`
+
+Always register commands before executing them over the network.
+</Warning>
+
+---
+
+## Validation in commands
+
+Commands should be **data only** - validation happens in handlers:
+
+<Tabs>
+  <Tab title="✅ Correct">
+    ```csharp
+    // Command: Just data
+    public struct DealDamageRequest : IRealmCommand
+    {
+        public Guid TargetId { get; set; }
+        public float Amount { get; set; }
+    }
+
+    // Handler: Validation logic
+    public class DealDamageRequestHandler : RealmCommandHandler<DealDamageRequest>
+    {
+        protected override void OnHandle(in DealDamageRequest cmd, RealmContext ctx)
+        {
+            ctx.RequireServer();
+
+            // Validation here
+            if (cmd.Amount <= 0)
+                return;
+
+            if (!IsValidTarget(cmd.TargetId))
+                return;
+
+            ApplyDamage(cmd.TargetId, cmd.Amount);
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="❌ Wrong">
+    ```csharp
+    // DON'T put validation in commands
+    public struct DealDamageRequest : IRealmCommand
+    {
+        private float _amount;
+
+        public float Amount
+        {
+            get => _amount;
+            set => _amount = Math.Max(0, value); // ❌ Validation in command
+        }
+
+        public bool IsValid()  // ❌ Logic in command
+        {
+            return Amount > 0;
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Advanced patterns
+
+### Nested data
+
+```csharp
+public struct SpawnEntityCommand : IRealmCommand
+{
+    public string PrefabId { get; set; }
+    public TransformData Transform { get; set; }
+    public EntityStats Stats { get; set; }
+}
+
+public struct TransformData
+{
+    public Vector3 Position { get; set; }
+    public Rotation Rotation { get; set; }
+}
+
+public struct EntityStats
+{
+    public float Health { get; set; }
+    public float Speed { get; set; }
+}
+```
+
+### Collections
+
+```csharp
+public struct BatchSpawnCommand : IRealmCommand
+{
+    public List<SpawnInfo> Entities { get; set; }
+}
+
+public struct SpawnInfo
+{
+    public string PrefabId { get; set; }
+    public Vector3 Position { get; set; }
+}
+```
+
+### Optional data with nullables
+
+```csharp
+public struct UpdatePlayerCommand : IRealmCommand
+{
+    public Guid PlayerId { get; set; }
+    public float? NewHealth { get; set; }     // null = don't update
+    public Vector3? NewPosition { get; set; } // null = don't update
+}
+```
+
+---
+
+## Testing commands
+
+Commands are easy to test since they're just data:
+
+```csharp
+[Test]
+public void Command_SerializesCorrectly()
+{
+    var command = new DealDamageRequest
+    {
+        TargetId = Guid.NewGuid(),
+        Amount = 25f
+    };
+
+    var json = JsonSerializer.Serialize(command);
+    var deserialized = JsonSerializer.Deserialize<DealDamageRequest>(json);
+
+    Assert.AreEqual(command.TargetId, deserialized.TargetId);
+    Assert.AreEqual(command.Amount, deserialized.Amount);
+}
+```
+
+---
+
+## Related pages
+
+<CardGroup cols={3}>
+  <Card title="Handlers" icon="microchip" href="/corelib/realms/handlers">
+    Processing commands
+  </Card>
+  <Card title="Realms" icon="network-wired" href="/corelib/realms/realms">
+    Execution contexts
+  </Card>
+  <Card title="Patterns" icon="diagram-project" href="/corelib/realms/patterns">
+    Real-world examples
+  </Card>
+</CardGroup>

@@ -1,0 +1,505 @@
+---
+title: "Getting Started"
+icon: "rocket"
+description: "Step-by-step guide to setting up Execution Realms in your project"
+---
+
+This guide walks you through setting up Execution Realms from scratch.
+
+---
+
+## Prerequisites
+
+<Note>
+Execution Realms is part of CoreLib. Ensure your project has CoreLib integrated and `CoreRoot` is set up in your scene.
+</Note>
+
+---
+
+## 1. Create your RealmModule subclass
+
+**Why?** s&box's reflection whitelist prevents automatic type discovery. You must manually register all command types.
+
+<Steps>
+  <Step title="Create the module class">
+    ```csharp
+    using CoreLib.ExecutionRealms;
+
+    public class MyGameRealmModule : RealmModule
+    {
+        protected override void RegisterCommandTypes()
+        {
+            // Register all your command types here
+            // We'll add commands in the next steps
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Add to scene">
+    In your scene hierarchy, add `MyGameRealmModule` as a child of your `CoreRoot` GameObject:
+
+    ```
+    GameObject: CoreRoot
+    ├─ Component: CoreRoot
+    ├─ Component: InputModule
+    ├─ Component: MyGameRealmModule  ← Add this
+    └─ ... other CoreLib modules
+    ```
+  </Step>
+
+  <Step title="Optional: Enable verbose logging">
+    In the Inspector, check **Verbose Logging** to see registration and execution logs.
+  </Step>
+</Steps>
+
+<Info>
+**What RealmModule does:**
+- Creates RealmTransport component for networking
+- Registers IRealmService with CoreContext
+- Initializes static RealmRouter API
+- Manages command type registry
+</Info>
+
+---
+
+## 2. Define your first command
+
+Commands are structs implementing `IRealmCommand`. Let's create a simple chat command:
+
+<Steps>
+  <Step title="Create the command struct">
+    Create a new file `Commands/ChatCommands.cs`:
+
+    ```csharp
+    using CoreLib.ExecutionRealms;
+
+    [RealmCommand(
+        Description = "Send a chat message to all players",
+        TypicalRealm = Realm.AllClients
+    )]
+    public struct SendChatMessageEvent : IRealmCommand
+    {
+        public string PlayerName { get; set; }
+        public string Message { get; set; }
+        public long Timestamp { get; set; }
+    }
+    ```
+  </Step>
+
+  <Step title="Register the command type">
+    Back in `MyGameRealmModule.cs`, register this command:
+
+    ```csharp
+    protected override void RegisterCommandTypes()
+    {
+        CommandTypeRegistry.Register<SendChatMessageEvent>();
+    }
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+**Naming conventions:**
+- `*Request` - Client → Server (e.g., `UseItemRequest`)
+- `*Event` - Server → AllClients (e.g., `PlayerJoinedEvent`)
+- `*Local` - LocalClient only (e.g., `ShowUINotificationLocal`)
+</Tip>
+
+---
+
+## 3. Create a handler
+
+Handlers process commands. They inherit from `RealmCommandHandler<T>` for automatic registration:
+
+<Steps>
+  <Step title="Create the handler class">
+    Create a new file `Handlers/ChatHandler.cs`:
+
+    ```csharp
+    using CoreLib.ExecutionRealms;
+
+    public class SendChatMessageHandler : RealmCommandHandler<SendChatMessageEvent>
+    {
+        protected override void OnHandle(in SendChatMessageEvent cmd, RealmContext ctx)
+        {
+            // Display the chat message
+            Log.Info($"[{cmd.PlayerName}]: {cmd.Message}");
+
+            // Update UI (implement your chat UI here)
+            UpdateChatUI(cmd.PlayerName, cmd.Message);
+        }
+
+        void UpdateChatUI(string playerName, string message)
+        {
+            // Your UI update code here
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Add handler to scene">
+    Add the handler component to any GameObject in your scene:
+
+    ```
+    GameObject: GameSystems
+    ├─ Component: SendChatMessageHandler  ← Add this
+    └─ ... other handlers
+    ```
+
+    <Info>
+    Handlers automatically register themselves on `OnEnabled()` and unregister on `OnDisabled()`.
+    </Info>
+  </Step>
+</Steps>
+
+---
+
+## 4. Execute your first command
+
+Now you can execute commands from anywhere in your code:
+
+<Tabs>
+  <Tab title="From server">
+    ```csharp
+    // Server broadcasts to all clients
+    RealmRouter.BroadcastToAllClients(new SendChatMessageEvent
+    {
+        PlayerName = player.Name,
+        Message = "Hello, world!",
+        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+    });
+    ```
+  </Tab>
+
+  <Tab title="From client">
+    ```csharp
+    // Client sends to server (which then broadcasts)
+    RealmRouter.ExecuteOnServer(new SendChatMessageEvent
+    {
+        PlayerName = LocalPlayer.Name,
+        Message = chatInput.Text,
+        Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+    });
+    ```
+
+    <Warning>
+    This will fail unless you have server-side validation! See the **Server validation** tab.
+    </Warning>
+  </Tab>
+
+  <Tab title="Server validation">
+    **Better pattern:** Client sends a request, server validates and broadcasts:
+
+    ```csharp
+    // 1. Define request command
+    [RealmCommand]
+    public struct SendChatRequest : IRealmCommand
+    {
+        public string Message { get; set; }
+    }
+
+    // 2. Register it
+    CommandTypeRegistry.Register<SendChatRequest>();
+
+    // 3. Create handler that validates and broadcasts
+    public class SendChatRequestHandler : RealmCommandHandler<SendChatRequest>
+    {
+        protected override void OnHandle(in SendChatRequest cmd, RealmContext ctx)
+        {
+            ctx.RequireServer();
+            var sender = ctx.RequireSender();
+
+            // Validate
+            if (string.IsNullOrWhiteSpace(cmd.Message))
+                return;
+
+            // Broadcast validated message
+            RealmRouter.BroadcastToAllClients(new SendChatMessageEvent
+            {
+                PlayerName = sender.DisplayName,
+                Message = cmd.Message,
+                Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+            });
+        }
+    }
+
+    // 4. Client executes request
+    RealmRouter.ExecuteOnServer(new SendChatRequest
+    {
+        Message = chatInput.Text
+    });
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## 5. Build a complete example
+
+Let's build a simple damage system:
+
+<Steps>
+  <Step title="Define commands">
+    ```csharp
+    // Client → Server: Request damage
+    [RealmCommand(Description = "Player requests to deal damage")]
+    public struct DealDamageRequest : IRealmCommand
+    {
+        public Guid TargetId { get; set; }
+        public float Amount { get; set; }
+        public Vector3 HitLocation { get; set; }
+    }
+
+    // Server → AllClients: Damage was dealt
+    [RealmCommand(Description = "Damage was successfully dealt")]
+    public struct DamageDealtEvent : IRealmCommand
+    {
+        public Guid TargetId { get; set; }
+        public float FinalDamage { get; set; }
+        public Vector3 HitLocation { get; set; }
+    }
+
+    // LocalClient: Show hit marker
+    [RealmCommand(Description = "Show local hit marker")]
+    public struct ShowHitmarkerLocal : IRealmCommand
+    {
+        public Vector3 Position { get; set; }
+        public float Damage { get; set; }
+    }
+    ```
+  </Step>
+
+  <Step title="Register commands">
+    ```csharp
+    protected override void RegisterCommandTypes()
+    {
+        CommandTypeRegistry.Register<DealDamageRequest>();
+        CommandTypeRegistry.Register<DamageDealtEvent>();
+        CommandTypeRegistry.Register<ShowHitmarkerLocal>();
+    }
+    ```
+  </Step>
+
+  <Step title="Create server handler">
+    ```csharp
+    public class DealDamageRequestHandler : RealmCommandHandler<DealDamageRequest>
+    {
+        protected override void OnHandle(in DealDamageRequest cmd, RealmContext ctx)
+        {
+            // Must run on server
+            ctx.RequireServer();
+            var sender = ctx.RequireSender();
+
+            // Find target
+            var target = FindEntity(cmd.TargetId);
+            if (target == null)
+                return;
+
+            // Validate (distance check, line of sight, etc.)
+            if (!IsValidDamage(sender, target, cmd))
+                return;
+
+            // Apply damage
+            var finalDamage = target.TakeDamage(cmd.Amount);
+
+            // Broadcast result to all clients
+            RealmRouter.BroadcastToAllClients(new DamageDealtEvent
+            {
+                TargetId = cmd.TargetId,
+                FinalDamage = finalDamage,
+                HitLocation = cmd.HitLocation
+            });
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Create client handlers">
+    ```csharp
+    // Update UI when damage is dealt
+    public class DamageDealtEventHandler : RealmCommandHandler<DamageDealtEvent>
+    {
+        protected override void OnHandle(in DamageDealtEvent cmd, RealmContext ctx)
+        {
+            var target = FindEntity(cmd.TargetId);
+            if (target != null)
+            {
+                // Update health bar
+                UpdateHealthBar(target, cmd.FinalDamage);
+
+                // Play hit effect
+                SpawnHitEffect(cmd.HitLocation);
+            }
+        }
+    }
+
+    // Show local hit marker
+    public class ShowHitmarkerHandler : RealmCommandHandler<ShowHitmarkerLocal>
+    {
+        protected override void OnHandle(in ShowHitmarkerLocal cmd, RealmContext ctx)
+        {
+            SpawnHitmarker(cmd.Position, cmd.Damage);
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Use in gameplay code">
+    ```csharp
+    public class WeaponController : Component
+    {
+        void FireWeapon()
+        {
+            var trace = DoWeaponTrace();
+
+            if (trace.Hit && trace.GameObject != null)
+            {
+                // Instant local feedback
+                RealmRouter.ExecuteLocally(new ShowHitmarkerLocal
+                {
+                    Position = trace.HitPosition,
+                    Damage = WeaponDamage
+                });
+
+                // Request server to apply damage
+                RealmRouter.ExecuteOnServer(new DealDamageRequest
+                {
+                    TargetId = trace.GameObject.Id,
+                    Amount = WeaponDamage,
+                    HitLocation = trace.HitPosition
+                });
+            }
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Testing your setup
+
+<Steps>
+  <Step title="Check console logs">
+    With verbose logging enabled, you should see:
+    ```
+    [RealmModule] Initialized Execution Realms
+    [RealmModule] Registered command type: DealDamageRequest
+    [RealmModule] Registered command type: DamageDealtEvent
+    [RealmModule] Registered handler for DealDamageRequest
+    ```
+  </Step>
+
+  <Step title="Execute a test command">
+    ```csharp
+    // Simple test
+    RealmRouter.ExecuteLocally(new ShowHitmarkerLocal
+    {
+        Position = Vector3.Zero,
+        Damage = 10f
+    });
+    ```
+
+    If your handler is set up correctly, it should execute immediately.
+  </Step>
+
+  <Step title="Test networking">
+    In multiplayer mode:
+    1. Client fires weapon
+    2. Server validates and applies damage
+    3. All clients receive DamageDealtEvent
+    4. UIs update
+
+    Check logs for RPC send/receive messages.
+  </Step>
+</Steps>
+
+---
+
+## Common mistakes
+
+<AccordionGroup>
+  <Accordion title="Command type not registered" icon="triangle-exclamation">
+    **Error:** `Command type 'MyCommand' is not registered`
+
+    **Cause:** Forgot to register in `RegisterCommandTypes()`
+
+    **Fix:**
+    ```csharp
+    protected override void RegisterCommandTypes()
+    {
+        CommandTypeRegistry.Register<MyCommand>(); // Add this
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Handler not executing" icon="circle-xmark">
+    **Symptoms:** Command executes but handler doesn't fire
+
+    **Common causes:**
+    1. Handler component not in scene
+    2. Handler GameObject disabled
+    3. Handler didn't call `base.OnEnabled()`
+
+    **Fix:** Ensure handler component is active in scene
+  </Accordion>
+
+  <Accordion title="RPC fails" icon="wifi-slash">
+    **Symptoms:** Commands work locally but not over network
+
+    **Common causes:**
+    1. RealmModule not in scene
+    2. Command struct not JSON-serializable
+    3. Trying to broadcast from client (only server can broadcast)
+
+    **Fix:** Check console for RPC errors
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Project structure
+
+Organize your commands and handlers:
+
+```
+MyGame/
+├── Commands/
+│   ├── ChatCommands.cs          # SendChatRequest, SendChatMessageEvent
+│   ├── CombatCommands.cs        # DealDamageRequest, DamageDealtEvent
+│   ├── InventoryCommands.cs     # UseItemRequest, ItemUsedEvent
+│   └── UICommands.cs            # ShowNotificationLocal, UpdateUILocal
+├── Handlers/
+│   ├── ChatHandlers.cs          # SendChatRequestHandler, SendChatMessageHandler
+│   ├── CombatHandlers.cs        # DealDamageRequestHandler, DamageDealtHandler
+│   └── InventoryHandlers.cs     # UseItemRequestHandler, ItemUsedHandler
+└── MyGameRealmModule.cs         # Command type registration
+```
+
+<Tip>
+**Benefits:**
+- All networking in one place
+- Easy to find commands and handlers
+- Clear separation of concerns
+- Reviewable in pull requests
+</Tip>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Learn about Commands" icon="code" href="/corelib/realms/commands">
+    Deep dive into command definition
+  </Card>
+  <Card title="Master Handlers" icon="microchip" href="/corelib/realms/handlers">
+    Validation and processing
+  </Card>
+  <Card title="Explore Realms" icon="network-wired" href="/corelib/realms/realms">
+    Execution contexts and routing
+  </Card>
+  <Card title="Common Patterns" icon="diagram-project" href="/corelib/realms/patterns">
+    Real-world examples
+  </Card>
+</CardGroup>

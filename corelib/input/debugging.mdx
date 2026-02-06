@@ -1,320 +1,569 @@
 ---
-title: "Input Debugging"
+title: "Debugging"
 icon: "bug"
-description: "Troubleshooting and debugging input issues"
+description: "Troubleshooting Enhanced Input issues and performance"
 ---
 
-<Info>
-This page covers tools and techniques for debugging input problems.
-</Info>
-
----
-
-## Debug overlay
-
-Enable the input debug overlay to visualise input state:
-
-```csharp
-// Enable debug overlay
-InputSystem.DebugOverlay = true;
-
-// Or toggle via console command
-// input_debug 1
-```
-
-The overlay shows:
-- Active context
-- Current action states
-- Active bindings
-- Input source values
+This guide helps you diagnose and fix common Enhanced Input issues.
 
 ---
 
-## Logging
+## Enable logging
 
-### Enable input logging
-
-```csharp
-// Enable detailed input logging
-InputSystem.LogLevel = InputLogLevel.Verbose;
-
-// Log levels:
-// - None: No logging
-// - Errors: Only errors
-// - Warnings: Errors and warnings
-// - Info: State changes
-// - Verbose: All input events
-```
-
-### Log output examples
+Set `InputModule` properties in the editor to enable verbose logging:
 
 ```
-[Input] Context changed: gameplay -> menu
-[Input] Action pressed: jump (Space)
-[Input] Binding conflict: fire (LeftMouse) already bound to aim
-[Input] Rebind complete: jump = Space -> Enter
+Auto Load Resources: true
+Validate On Load: true  ← Enable this for warnings
 ```
+
+**Logs include:**
+- Resource load summary (contexts, actions)
+- Validation warnings (missing actions, invalid configs)
+- Action registration/unregistration
+- Context push/pop operations
+
+---
+
+## Debug UI
+
+Enhanced Input registers a debug page with `IDebugUiService`:
+
+**Access via:**
+- Console: `/debug input` (if debug UI command exists)
+- Code: `debugUiService.ShowPage("input")`
+
+**Displays:**
+- All registered actions with current state
+- Active contexts (priority sorted)
+- Current input values (live update)
+- Event history (recent fired events)
 
 ---
 
 ## Common issues
 
 <AccordionGroup>
-  <Accordion title="Action not responding" icon="xmark">
-    **Symptoms:** `IsActionPressed` never returns true
+  <Accordion title="Action not firing" icon="circle-xmark">
+    **Symptoms:**
+    - Action callback never called
+    - No events dispatched
 
     **Checklist:**
-    1. Is the action defined? Check with `InputSystem.HasAction("action")`
-    2. Is the correct context active? Check `InputSystem.ActiveContext`
-    3. Is the action in the active context?
-    4. Is there a valid binding? Check `InputSystem.GetBinding("action")`
-    5. Is input being consumed elsewhere? Check consumption
 
-    **Debug:**
+    <Steps>
+      <Step title="Verify resource exists and is loaded">
+        Check console for: `"Registered action 'action_name'"`
+
+        If missing:
+        - Ensure `.inputact` file exists
+        - Check `InputModule.AutoLoadResources = true`
+        - Verify action name matches resource name
+      </Step>
+
+      <Step title="Check s&box action mapping">
+        The **S&box Action** field must match your project's input settings.
+
+        Common s&box actions:
+        - `jump`, `attack1`, `attack2`
+        - `forward`, `backward`, `left`, `right`
+        - `run`, `walk`, `duck`, `menu`
+
+        **Fix:** Update the S&box Action field in your `.inputact` resource
+      </Step>
+
+      <Step title="Check if action is blocked by context">
+        Higher-priority contexts may be blocking your action.
+
+        ```csharp
+        // Log active contexts
+        var input = CoreServiceRegistry.Get<IInputService>();
+        foreach (var ctx in input.Contexts.AllContexts)
+        {
+            if (ctx.IsEnabled)
+            {
+                Log.Info($"Context: {ctx.Name} (Priority: {ctx.Priority})");
+                Log.Info($"  Blocks: {string.Join(", ", ctx.BlockedActions)}");
+            }
+        }
+        ```
+
+        **Fix:** Adjust context priorities or blocked actions
+      </Step>
+
+      <Step title="Verify trigger configuration">
+        Check your trigger settings. Common mistakes:
+        - Hold trigger with too long duration
+        - Tap trigger with too short window
+        - DoubleTap not completing in time
+
+        **Fix:** Adjust trigger parameters or use simpler trigger (Pressed)
+      </Step>
+
+      <Step title="Check component lifecycle">
+        For `InputComponent`, ensure `RegisterInputBindings()` is called:
+
+        ```csharp
+        protected override void OnStart()
+        {
+            base.OnStart(); // ← Don't forget this!
+            // Your code...
+        }
+        ```
+
+        **Fix:** Call `base.OnStart()` or `base.OnEnabled()`
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Modifiers not working" icon="sliders">
+    **Symptoms:**
+    - Deadzone not removing drift
+    - Scale not affecting sensitivity
+    - Normalize not working
+
+    **Common causes:**
+
+    | Issue | Cause | Fix |
+    |-------|-------|-----|
+    | Deadzone no effect | Applied to Bool action | Deadzone only works on Float/Vector2/Vector3 |
+    | Normalize no effect | Applied to Float action | Normalize only works on Vector2/Vector3 |
+    | Scale seems wrong | Wrong axis configured | Check X/Y/Z values match your axes |
+    | Order matters | Modifiers in wrong order | Deadzone before Scale, Normalize after Deadzone |
+
+    **Test modifier pipeline:**
     ```csharp
-    Log.Info($"Has action: {InputSystem.HasAction("jump")}");
-    Log.Info($"Active context: {InputSystem.ActiveContext}");
-    Log.Info($"Binding: {InputSystem.GetBinding("jump")?.DisplayName}");
+    var action = EnhancedInput.Move;
+    Log.Info($"Raw value: {action.Value}");
+    // Check if value matches expected after modifiers
     ```
   </Accordion>
 
-  <Accordion title="Wrong context active" icon="layer-group">
-    **Symptoms:** Expected actions don't work, unexpected ones do
+  <Accordion title="Context not blocking input" icon="layer-group">
+    **Symptoms:**
+    - UI opened but gameplay still responds
+    - Lower-priority context receiving input
 
-    **Causes:**
-    - Forgot to pop a pushed context
-    - Context set in wrong order
-    - Multiple systems fighting over context
+    **Checklist:**
 
-    **Debug:**
+    <Steps>
+      <Step title="Verify priority is higher">
+        ```csharp
+        // UI should have higher priority than gameplay
+        UI Context: Priority 100
+        Gameplay Context: Priority 10
+        ```
+      </Step>
+
+      <Step title="Check BlockedActions list">
+        ```csharp
+        _uiContext = new InputContext("ui", 100)
+            .WithBlockedActions("jump", "fire", "interact"); // ← Add actions
+        ```
+      </Step>
+
+      <Step title="Enable ConsumesInput if needed">
+        ```csharp
+        _uiContext = new InputContext("ui", 100)
+            .WithConsumesInput(true); // ← Blocks ALL lower contexts
+        ```
+      </Step>
+
+      <Step title="Verify context is pushed">
+        ```csharp
+        _input.Contexts.Push(_uiContext);
+
+        // Check if active
+        var active = _input.Contexts.AllContexts
+            .Any(c => c.Id == "ui" && c.IsEnabled);
+        Log.Info($"UI Context active: {active}");
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Triggers not evaluating correctly" icon="hand-pointer">
+    **Symptoms:**
+    - Hold trigger not firing after duration
+    - Tap failing unexpectedly
+    - DoubleTap not detecting
+
+    **Solutions:**
+
+    | Trigger | Common Issue | Fix |
+    |---------|--------------|-----|
+    | Hold | Duration too long | Reduce `holdTime` (try 0.5s first) |
+    | Tap | Window too short | Increase `tapTime` (try 0.3s) |
+    | DoubleTap | Window too tight | Increase `doubleTapWindow` (try 0.5s) |
+    | Chorded | Chord action doesn't exist | Verify chord action name |
+
+    **Test trigger timing:**
     ```csharp
-    // Log the full context stack
-    foreach (var ctx in InputSystem.ContextStack)
+    protected override void RegisterInputBindings()
     {
-        Log.Info($"Context: {ctx}");
+        Bind(EnhancedInput.Attack)
+            .OnStarted(() => Log.Info($"Started at {Time.Now}"))
+            .OnTriggered(() => Log.Info($"Triggered at {Time.Now}"))
+            .OnCompleted(() => Log.Info($"Completed, held for {EnhancedInput.Attack.HoldTime}s"))
+            .OnCanceled(() => Log.Info($"Canceled, held for {EnhancedInput.Attack.HoldTime}s"));
     }
     ```
-
-    **Fix:** Audit all `PushContext` and `PopContext` calls
   </Accordion>
 
-  <Accordion title="Binding conflicts" icon="triangle-exclamation">
-    **Symptoms:** One action works, another with same key doesn't
+  <Accordion title="Hot-reload not working" icon="rotate">
+    **Symptoms:**
+    - Changes to `.inputact` files not reflected
+    - Need to restart game to see updates
 
-    **Debug:**
-    ```csharp
-    // Find all bindings for a key
-    var bindings = InputSystem.GetBindingsForSource("Space");
-    foreach (var binding in bindings)
-    {
-        Log.Info($"{binding.ActionId} bound to Space");
-    }
-    ```
+    **Fixes:**
 
-    **Fix:** Use different keys or different contexts
+    <Steps>
+      <Step title="Check AutoLoadResources">
+        ```
+        InputModule.AutoLoadResources: true
+        ```
+      </Step>
+
+      <Step title="Regenerate code after changes">
+        **Editor → Enhanced Input → Regenerate Input Code**
+
+        Run this after:
+        - Adding new actions
+        - Renaming actions
+        - Changing value types
+      </Step>
+
+      <Step title="Check for errors in console">
+        Look for validation warnings or load failures
+      </Step>
+
+      <Step title="Restart play session if cache is stale">
+        Sometimes a full restart is needed for complex changes
+      </Step>
+    </Steps>
   </Accordion>
 
-  <Accordion title="Axis values wrong" icon="sliders">
-    **Symptoms:** Movement is inverted, too fast, or jittery
+  <Accordion title="Performance issues" icon="gauge">
+    **Symptoms:**
+    - Frame rate drops
+    - Input lag
 
-    **Causes:**
-    - Scale modifier incorrect
-    - Dead zone too large/small
-    - Invert modifier applied incorrectly
+    **Investigate:**
 
-    **Debug:**
-    ```csharp
-    // Log raw vs processed values
-    var raw = InputSystem.GetRawAxisValue("move");
-    var processed = InputSystem.GetAxis2D("move");
-    Log.Info($"Raw: {raw}, Processed: {processed}");
-    ```
-  </Accordion>
+    <Steps>
+      <Step title="Check action count">
+        ```csharp
+        var input = CoreServiceRegistry.Get<IInputService>();
+        Log.Info($"Registered actions: {input.RegisteredActions.Count}");
+        ```
 
-  <Accordion title="Input consumed unexpectedly" icon="eye-slash">
-    **Symptoms:** Action fires sometimes but not others
+        **Target:** < 50 actions typical, < 100 maximum
+      </Step>
 
-    **Causes:**
-    - UI consuming input
-    - Another system calling `ConsumeAction`
-    - Order of update calls
+      <Step title="Check modifier count per action">
+        **Target:** 3-5 modifiers per action
+        **Avoid:** > 10 modifiers (diminishing returns)
+      </Step>
 
-    **Debug:**
-    ```csharp
-    // Check if action was consumed
-    if (InputSystem.WasActionConsumed("jump"))
-    {
-        Log.Info("Jump was consumed this frame");
-    }
-    ```
+      <Step title="Check context count">
+        ```csharp
+        var activeContexts = input.Contexts.AllContexts
+            .Count(c => c.IsEnabled);
+        Log.Info($"Active contexts: {activeContexts}");
+        ```
+
+        **Target:** < 10 active contexts
+      </Step>
+
+      <Step title="Profile with custom triggers">
+        Complex custom triggers can be expensive. Use built-in triggers when possible.
+      </Step>
+    </Steps>
+
+    **Optimization tips:**
+    - Use events for discrete actions (not polling)
+    - Cache `IInputService` reference
+    - Unsubscribe when components disable
+    - Use `InputComponent` for automatic cleanup
   </Accordion>
 </AccordionGroup>
 
 ---
 
-## Debug commands
+## Validation pipeline
 
-Console commands for debugging:
+Resources validate on load. Check console for warnings:
 
-| Command | Description |
-|---------|-------------|
-| `input_debug 1` | Enable debug overlay |
-| `input_log verbose` | Set log level |
-| `input_context` | Print current context |
-| `input_bindings` | Print all bindings |
-| `input_actions` | Print all actions |
-| `input_reset` | Reset to default bindings |
+```
+[Input] jump: All validations passed
+[Input] move: Deadzone modifier has no effect on Bool value types
+[Input] fire: Context has no actions defined
+```
+
+**Common validation warnings:**
+
+| Warning | Cause | Fix |
+|---------|-------|-----|
+| "Deadzone modifier has no effect on Bool" | Deadzone on Bool action | Remove modifier or change to Float/Vector2/Vector3 |
+| "Normalize modifier has no effect on Float" | Normalize on Float action | Remove modifier or change to Vector2/Vector3 |
+| "Chorded trigger must specify a chord action" | Empty chord action field | Set `ChordAction` property |
+| "Context has no actions defined" | Empty actions list | Add actions to context |
+| "Actions list contains null reference" | Missing action reference | Remove null entries |
 
 ---
 
-## Runtime inspection
+## Diagnostic logging
 
-### Action state inspection
+### Log action state
 
 ```csharp
-public class InputDebugPanel : Panel
+protected override void OnUpdate()
 {
+    var action = EnhancedInput.Jump;
+
+    Log.Info($"Action: {action.ActionName}");
+    Log.Info($"  Phase: {action.Phase}");
+    Log.Info($"  IsActive: {action.IsActive}");
+    Log.Info($"  HoldTime: {action.HoldTime}");
+    Log.Info($"  Value: {action.Value}");
+}
+```
+
+### Log context evaluation
+
+```csharp
+var input = CoreServiceRegistry.Get<IInputService>();
+
+// Log all contexts
+foreach (var context in input.Contexts.AllContexts)
+{
+    Log.Info($"Context: {context.Name}");
+    Log.Info($"  Priority: {context.Priority}");
+    Log.Info($"  Enabled: {context.IsEnabled}");
+    Log.Info($"  Consumes: {context.ConsumesInput}");
+    Log.Info($"  Actions: {string.Join(", ", context.HandledActions)}");
+    Log.Info($"  Blocked: {string.Join(", ", context.BlockedActions)}");
+}
+```
+
+### Log event flow
+
+```csharp
+protected override void RegisterInputBindings()
+{
+    Bind(EnhancedInput.Jump).OnEvent += (evt) =>
+    {
+        Log.Info($"[{evt.Timestamp:F2}] {evt.ActionName}: {evt.Phase}");
+        Log.Info($"  Value: {evt.Value}, HoldTime: {evt.HoldTime}");
+    };
+}
+```
+
+---
+
+## Testing input
+
+### Manual testing checklist
+
+<Steps>
+  <Step title="Test all actions">
+    - Press each bound button
+    - Verify expected behavior
+    - Check for duplicate bindings
+  </Step>
+
+  <Step title="Test modifiers">
+    - Verify deadzone removes drift
+    - Check sensitivity feels right
+    - Test normalize on diagonal input
+  </Step>
+
+  <Step title="Test triggers">
+    - Hold actions long enough for Hold triggers
+    - Quick tap for Tap triggers
+    - Double-tap quickly for DoubleTap
+    - Hold chord action for Chorded triggers
+  </Step>
+
+  <Step title="Test context blocking">
+    - Open UI overlay
+    - Verify gameplay input blocked
+    - Close UI
+    - Verify gameplay input restored
+  </Step>
+
+  <Step title="Test context priority">
+    - Open multiple overlays
+    - Verify highest priority wins
+    - Pop contexts in order
+    - Verify next context takes over
+  </Step>
+</Steps>
+
+### Unit testing with mocks
+
+```csharp
+public class MockInputService : IInputService
+{
+    private Dictionary<string, List<Action<InputActionEvent>>> _subscribers = new();
+
+    public IDisposable Subscribe(string actionName, Action<InputActionEvent> handler)
+    {
+        if (!_subscribers.ContainsKey(actionName))
+            _subscribers[actionName] = new();
+
+        _subscribers[actionName].Add(handler);
+
+        return new Subscription(() => _subscribers[actionName].Remove(handler));
+    }
+
+    public void SimulateAction(string actionName, InputActionPhase phase, InputValue value = default)
+    {
+        if (!_subscribers.TryGetValue(actionName, out var handlers))
+            return;
+
+        var evt = new InputActionEvent
+        {
+            ActionName = actionName,
+            Phase = phase,
+            Value = value,
+            Timestamp = Time.Now
+        };
+
+        foreach (var handler in handlers)
+            handler(evt);
+    }
+
+    // ... implement rest of IInputService
+}
+
+// In tests:
+[Test]
+public void Jump_TriggersOnPress()
+{
+    var mockInput = new MockInputService();
+    var player = new PlayerController { InputService = mockInput };
+
+    mockInput.SimulateAction("jump", InputActionPhase.Triggered);
+
+    Assert.IsTrue(player.DidJump);
+}
+```
+
+---
+
+## Performance profiling
+
+### Measure update cost
+
+```csharp
+public class InputPerformanceMonitor : Component
+{
+    private IInputService _input;
+    private System.Diagnostics.Stopwatch _stopwatch = new();
+
+    protected override void OnStart()
+    {
+        _input = CoreServiceRegistry.Get<IInputService>();
+    }
+
     protected override void OnUpdate()
     {
-        var actions = InputSystem.GetAllActions();
+        _stopwatch.Restart();
 
-        foreach (var action in actions)
+        // Input system updates here (automatically)
+
+        _stopwatch.Stop();
+
+        if (_stopwatch.Elapsed.TotalMilliseconds > 1.0)
         {
-            var state = InputSystem.GetActionState(action.Id);
-            DrawActionState(action.Id, state);
+            Log.Warning($"Input update took {_stopwatch.Elapsed.TotalMilliseconds:F2}ms");
+            LogInputStats();
         }
     }
 
-    private void DrawActionState(string actionId, InputActionState state)
+    void LogInputStats()
     {
-        var color = state.IsPressed ? Color.Green :
-                    state.IsHeld ? Color.Yellow : Color.Gray;
-
-        DrawText(actionId, color);
-        DrawText($"Value: {state.Value}", color);
+        Log.Info($"Actions: {_input.RegisteredActions.Count}");
+        Log.Info($"Contexts: {_input.Contexts.AllContexts.Count(c => c.IsEnabled)}");
     }
 }
 ```
 
-### Binding visualisation
+### Performance targets
 
-```csharp
-// Visualise all active bindings
-foreach (var binding in InputSystem.GetActiveBindings())
-{
-    DebugOverlay.ScreenText(
-        $"{binding.ActionId}: {binding.Source.DisplayName}",
-        position,
-        Color.White
-    );
-}
-```
+| Metric | Target | Warning | Critical |
+|--------|--------|---------|----------|
+| Update time | < 0.1ms | > 0.5ms | > 1.0ms |
+| Action count | < 50 | > 100 | > 200 |
+| Context count | < 10 | > 20 | > 50 |
+| Modifiers per action | < 5 | > 10 | > 20 |
 
 ---
 
-## Unit testing input
-
-### Mocking input
-
-```csharp
-[TestClass]
-public class PlayerControllerTests
-{
-    [TestMethod]
-    public void Jump_WhenJumpPressed_SetsVelocity()
-    {
-        // Arrange
-        var mockInput = new MockInputSystem();
-        var controller = new PlayerController(mockInput);
-
-        // Act
-        mockInput.SimulatePress("jump");
-        controller.Update();
-
-        // Assert
-        Assert.IsTrue(controller.Velocity.Y > 0);
-    }
-}
-
-public class MockInputSystem : IInputSystem
-{
-    private HashSet<string> _pressedActions = new();
-
-    public void SimulatePress(string actionId)
-    {
-        _pressedActions.Add(actionId);
-    }
-
-    public bool IsActionPressed(string actionId)
-    {
-        return _pressedActions.Contains(actionId);
-    }
-}
-```
-
----
-
-## Performance debugging
-
-### Input system metrics
-
-```csharp
-// Get input system performance metrics
-var metrics = InputSystem.GetMetrics();
-
-Log.Info($"Actions processed: {metrics.ActionsProcessedPerFrame}");
-Log.Info($"Bindings evaluated: {metrics.BindingsEvaluatedPerFrame}");
-Log.Info($"Processing time: {metrics.ProcessingTimeMs}ms");
-```
-
-### Profiling tips
+## Best practices for debugging
 
 <CardGroup cols={2}>
-  <Card title="Reduce active actions" icon="filter">
-    Only include necessary actions in each context
+  <Card title="Start simple" icon="1">
+    Test with minimal configuration first:
+    - Single action with Pressed trigger
+    - No modifiers
+    - No contexts
+
+    Then add complexity incrementally.
   </Card>
-  <Card title="Avoid polling" icon="clock">
-    Use events for non-frame-critical input
+
+  <Card title="Use validation" icon="2">
+    Enable validation warnings:
+    ```
+    InputModule.ValidateOnLoad: true
+    ```
+
+    Fix warnings before investigating runtime issues.
+  </Card>
+
+  <Card title="Log liberally" icon="3">
+    Add debug logging to your bindings:
+    ```csharp
+    Bind(EnhancedInput.Jump)
+        .OnStarted(() => Log.Info("Jump started"))
+        .OnTriggered(() => Log.Info("Jump triggered"));
+    ```
+  </Card>
+
+  <Card title="Isolate issues" icon="4">
+    Disable systems one at a time:
+    - Remove modifiers
+    - Use simpler trigger
+    - Disable contexts
+    - Use direct polling instead of events
   </Card>
 </CardGroup>
 
 ---
 
-## Troubleshooting checklist
+## Getting help
+
+If you're still stuck after trying these solutions:
 
 <Steps>
-  <Step title="Verify action exists">
-    ```csharp
-    if (!InputSystem.HasAction("myAction"))
-        Log.Error("Action not found!");
-    ```
+  <Step title="Gather information">
+    - Console logs (especially validation warnings)
+    - Action configuration (s&box action, value type, modifiers, triggers)
+    - Context configuration (priority, blocked actions, consumes input)
+    - Code snippet showing usage
   </Step>
 
-  <Step title="Check context">
-    ```csharp
-    Log.Info($"Current context: {InputSystem.ActiveContext}");
-    ```
+  <Step title="Create minimal reproduction">
+    Strip down to the simplest case that reproduces the issue
   </Step>
 
-  <Step title="Check binding">
-    ```csharp
-    var binding = InputSystem.GetBinding("myAction");
-    if (binding == null)
-        Log.Error("No binding found!");
-    ```
+  <Step title="Check CLAUDE.md">
+    Verify your setup matches the project conventions
   </Step>
 
-  <Step title="Check for consumption">
-    ```csharp
-    if (InputSystem.WasActionConsumed("myAction"))
-        Log.Warning("Action was consumed!");
-    ```
-  </Step>
-
-  <Step title="Enable verbose logging">
-    ```csharp
-    InputSystem.LogLevel = InputLogLevel.Verbose;
-    ```
+  <Step title="Ask the team">
+    Provide gathered information and minimal reproduction
   </Step>
 </Steps>
 
@@ -322,11 +571,14 @@ Log.Info($"Processing time: {metrics.ProcessingTimeMs}ms");
 
 ## Related pages
 
-<CardGroup cols={2}>
-  <Card title="Best Practices" icon="star" href="/corelib/input/best-practices">
-    Avoid common pitfalls
+<CardGroup cols={3}>
+  <Card title="Getting Started" icon="rocket" href="/corelib/input/getting-started">
+    Setup guide
   </Card>
-  <Card title="Debug Tools" icon="wrench" href="/editor/extending/debug-tools">
-    Building custom debug tools
+  <Card title="Usage Patterns" icon="code" href="/corelib/input/usage-patterns">
+    Working examples
+  </Card>
+  <Card title="Actions" icon="bolt" href="/corelib/input/actions">
+    Action API reference
   </Card>
 </CardGroup>

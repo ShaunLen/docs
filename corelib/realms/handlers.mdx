@@ -1,0 +1,483 @@
+---
+title: "Handlers"
+icon: "microchip"
+description: "Processing commands with validation and context"
+---
+
+Handlers are components that process commands. They contain the logic that executes when a command is received.
+
+---
+
+## RealmCommandHandler base class
+
+The simplest way to create a handler is to inherit from `RealmCommandHandler<T>`:
+
+```csharp
+using CoreLib.ExecutionRealms;
+
+public class DealDamageRequestHandler : RealmCommandHandler<DealDamageRequest>
+{
+    protected override void OnHandle(in DealDamageRequest command, RealmContext context)
+    {
+        // Handle the command
+    }
+}
+```
+
+<Info>
+**Automatic registration:**
+- `OnEnabled()` - Registers handler with RealmService
+- `OnDisabled()` - Unregisters handler
+- No manual cleanup required
+</Info>
+
+---
+
+## OnHandle method
+
+The `OnHandle` method receives the command and context:
+
+```csharp
+protected override void OnHandle(in DealDamageRequest command, RealmContext context)
+{
+    // command: The command data (passed by reference for performance)
+    // context: Execution context (sender, realm, validation helpers)
+}
+```
+
+<Note>
+The `in` modifier passes the struct by read-only reference for performance. Don't try to modify the command.
+</Note>
+
+---
+
+## RealmContext
+
+Context provides execution information and validation helpers:
+
+<Tabs>
+  <Tab title="Properties">
+    ```csharp
+    public readonly struct RealmContext
+    {
+        // Who sent this command (null if local/server-initiated)
+        public Connection? Sender { get; }
+
+        // Are we executing on the server?
+        public bool IsServer { get; }
+
+        // Are we executing on a client?
+        public bool IsClient { get; }
+
+        // Which realm was targeted
+        public Realm ExecutionRealm { get; }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Validation helpers">
+    ```csharp
+    // Throws if not on server
+    context.RequireServer();
+
+    // Throws if not on client
+    context.RequireClient();
+
+    // Returns sender or throws if null
+    Connection sender = context.RequireSender();
+    Connection sender = context.RequireSender("Custom error message");
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Common patterns
+
+<AccordionGroup>
+  <Accordion title="Server-authoritative handler" icon="server">
+    **Most common pattern - server validates and applies logic**
+
+    ```csharp
+    public class UseItemRequestHandler : RealmCommandHandler<UseItemRequest>
+    {
+        protected override void OnHandle(in UseItemRequest cmd, RealmContext ctx)
+        {
+            // Guard: must run on server
+            ctx.RequireServer();
+
+            // Guard: must have a sender (client who sent it)
+            var sender = ctx.RequireSender();
+
+            // Validate request
+            if (!IsValidItemUse(cmd, sender))
+                return;
+
+            // Apply server-side logic
+            var item = FindItem(cmd.ItemId);
+            item.Use(cmd.PlayerId);
+
+            // Broadcast result to all clients
+            RealmRouter.BroadcastToAllClients(new ItemUsedEvent
+            {
+                ItemId = cmd.ItemId,
+                PlayerId = cmd.PlayerId
+            });
+        }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Client-only handler" icon="desktop">
+    **UI updates, visual effects, local feedback**
+
+    ```csharp
+    public class UpdateHealthUIHandler : RealmCommandHandler<UpdateHealthUILocal>
+    {
+        protected override void OnHandle(in UpdateHealthUILocal cmd, RealmContext ctx)
+        {
+            // No guards needed - LocalClient commands only run locally
+            UpdateHealthBar(cmd.CurrentHealth, cmd.MaxHealth);
+        }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Broadcast handler (all clients)" icon="users">
+    **Synchronized events that all clients should process**
+
+    ```csharp
+    public class PlayerJoinedEventHandler : RealmCommandHandler<PlayerJoinedEvent>
+    {
+        protected override void OnHandle(in PlayerJoinedEvent cmd, RealmContext ctx)
+        {
+            // This runs on all clients (including server if listening)
+            ShowNotification($"{cmd.PlayerName} joined the game");
+            UpdatePlayerList(cmd.PlayerId, cmd.PlayerName);
+        }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Conditional logic based on realm" icon="code-branch">
+    **Different behavior on server vs client**
+
+    ```csharp
+    public class DamageDealtEventHandler : RealmCommandHandler<DamageDealtEvent>
+    {
+        protected override void OnHandle(in DamageDealtEvent cmd, RealmContext ctx)
+        {
+            if (ctx.IsServer)
+            {
+                // Server: Log for analytics
+                LogDamageEvent(cmd);
+            }
+
+            if (ctx.IsClient)
+            {
+                // Client: Update UI
+                UpdateHealthBar(cmd.TargetId, cmd.FinalDamage);
+                SpawnHitEffect(cmd.HitLocation);
+            }
+        }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Validation patterns
+
+<Tabs>
+  <Tab title="RequireServer">
+    **Ensure server-authoritative logic**
+
+    ```csharp
+    protected override void OnHandle(in DealDamageRequest cmd, RealmContext ctx)
+    {
+        ctx.RequireServer(); // Throws if not server
+
+        // Safe: only runs on server
+        ApplyDamage(cmd.TargetId, cmd.Amount);
+    }
+    ```
+  </Tab>
+
+  <Tab title="RequireSender">
+    **Validate client requests**
+
+    ```csharp
+    protected override void OnHandle(in UseItemRequest cmd, RealmContext ctx)
+    {
+        ctx.RequireServer();
+        var sender = ctx.RequireSender(); // Throws if no sender
+
+        // Validate sender owns the item
+        if (!PlayerOwnsItem(sender, cmd.ItemId))
+        {
+            Log.Warning($"Player {sender.DisplayName} tried to use item they don't own");
+            return;
+        }
+
+        UseItem(cmd.ItemId);
+    }
+    ```
+  </Tab>
+
+  <Tab title="Custom validation">
+    **Domain-specific checks**
+
+    ```csharp
+    protected override void OnHandle(in DealDamageRequest cmd, RealmContext ctx)
+    {
+        ctx.RequireServer();
+        var sender = ctx.RequireSender();
+
+        // Validate amount
+        if (cmd.Amount <= 0 || cmd.Amount > MaxDamage)
+            return;
+
+        // Validate target exists
+        var target = FindEntity(cmd.TargetId);
+        if (target == null)
+            return;
+
+        // Validate distance
+        var attacker = GetPlayerEntity(sender);
+        if (Vector3.DistanceBetween(attacker.Position, target.Position) > MaxRange)
+            return;
+
+        // Validate line of sight
+        if (!HasLineOfSight(attacker.Position, target.Position))
+            return;
+
+        // All checks passed - apply damage
+        target.TakeDamage(cmd.Amount);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Multiple handlers
+
+Multiple handlers can process the same command:
+
+```csharp
+// Handler 1: Logs damage for analytics
+public class DamageLogger : RealmCommandHandler<DamageDealtEvent>
+{
+    protected override void OnHandle(in DamageDealtEvent cmd, RealmContext ctx)
+    {
+        if (ctx.IsServer)
+            LogToAnalytics("damage_dealt", cmd);
+    }
+}
+
+// Handler 2: Updates UI
+public class DamageUIUpdater : RealmCommandHandler<DamageDealtEvent>
+{
+    protected override void OnHandle(in DamageDealtEvent cmd, RealmContext ctx)
+    {
+        if (ctx.IsClient)
+            UpdateHealthBar(cmd.TargetId, cmd.FinalDamage);
+    }
+}
+
+// Handler 3: Spawns visual effects
+public class DamageEffects : RealmCommandHandler<DamageDealtEvent>
+{
+    protected override void OnHandle(in DamageDealtEvent cmd, RealmContext ctx)
+    {
+        SpawnHitEffect(cmd.HitLocation, cmd.FinalDamage);
+    }
+}
+```
+
+<Info>
+**All handlers execute** in registration order. There's no priority system - use separate commands if you need ordering.
+</Info>
+
+---
+
+## Manual registration
+
+For advanced scenarios, implement `IRealmCommandHandler<T>` directly:
+
+```csharp
+public class MyHandler : Component, IRealmCommandHandler<MyCommand>
+{
+    private IRealmService _service;
+
+    protected override void OnEnabled()
+    {
+        _service = CoreServiceRegistry.Get<IRealmService>();
+        _service.RegisterHandler<MyCommand>(this);
+    }
+
+    protected override void OnDisabled()
+    {
+        _service?.UnregisterHandler<MyCommand>(this);
+    }
+
+    public void Handle(in MyCommand command, RealmContext context)
+    {
+        // Handle command
+    }
+}
+```
+
+<Tip>
+Use `RealmCommandHandler<T>` unless you need custom lifecycle behavior.
+</Tip>
+
+---
+
+## Handler organization
+
+<Tabs>
+  <Tab title="By feature">
+    ```
+    Handlers/
+    ├── CombatHandlers.cs
+    │   ├── DealDamageRequestHandler
+    │   ├── DamageDealtEventHandler
+    │   └── HealPlayerRequestHandler
+    ├── InventoryHandlers.cs
+    │   ├── UseItemRequestHandler
+    │   ├── DropItemRequestHandler
+    │   └── ItemUsedEventHandler
+    └── ChatHandlers.cs
+        ├── SendChatRequestHandler
+        └── ChatMessageEventHandler
+    ```
+  </Tab>
+
+  <Tab title="By component">
+    ```
+    GameObject: GameSystems
+    ├── Component: DealDamageRequestHandler
+    ├── Component: DamageDealtEventHandler
+    ├── Component: UseItemRequestHandler
+    └── Component: ChatHandlers
+        ├── SendChatRequestHandler
+        └── ChatMessageEventHandler
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Testing handlers
+
+Handlers are easy to unit test:
+
+```csharp
+[Test]
+public void Handler_ValidatesDamageAmount()
+{
+    var handler = new DealDamageRequestHandler();
+    var command = new DealDamageRequest
+    {
+        TargetId = Guid.NewGuid(),
+        Amount = -10f // Invalid!
+    };
+
+    var context = new RealmContext
+    {
+        IsServer = true,
+        Sender = MockConnection.Create()
+    };
+
+    // Should reject negative damage
+    handler.TestHandle(command, context);
+
+    Assert.IsFalse(WasDamageApplied);
+}
+```
+
+---
+
+## Performance tips
+
+<AccordionGroup>
+  <Accordion title="Early returns" icon="bolt">
+    Validate and exit early:
+
+    ```csharp
+    protected override void OnHandle(in MyCommand cmd, RealmContext ctx)
+    {
+        if (!ctx.IsServer) return;        // Early exit
+        if (ctx.Sender == null) return;   // Early exit
+        if (cmd.Amount <= 0) return;      // Early exit
+
+        // Only runs if all checks pass
+        ExpensiveOperation();
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Avoid allocations" icon="memory">
+    Minimize allocations in hot paths:
+
+    ```csharp
+    // ✅ Good - no allocations
+    protected override void OnHandle(in MyCommand cmd, RealmContext ctx)
+    {
+        var target = FindEntity(cmd.TargetId);
+        target?.TakeDamage(cmd.Amount);
+    }
+
+    // ❌ Bad - unnecessary allocations
+    protected override void OnHandle(in MyCommand cmd, RealmContext ctx)
+    {
+        var message = $"Damage: {cmd.Amount}"; // String allocation
+        var list = new List<Entity>();          // List allocation
+        // ...
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Cache references" icon="database">
+    ```csharp
+    public class MyHandler : RealmCommandHandler<MyCommand>
+    {
+        private IRealmService _realmService;
+        private PlayerManager _playerManager;
+
+        protected override void OnStart()
+        {
+            base.OnStart();
+
+            // Cache expensive lookups
+            _realmService = CoreServiceRegistry.Get<IRealmService>();
+            _playerManager = Scene.GetAllComponents<PlayerManager>().FirstOrDefault();
+        }
+
+        protected override void OnHandle(in MyCommand cmd, RealmContext ctx)
+        {
+            // Use cached references
+            var player = _playerManager.GetPlayer(cmd.PlayerId);
+        }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Related pages
+
+<CardGroup cols={3}>
+  <Card title="Commands" icon="code" href="/corelib/realms/commands">
+    Define command types
+  </Card>
+  <Card title="Realms" icon="network-wired" href="/corelib/realms/realms">
+    Execution contexts
+  </Card>
+  <Card title="Patterns" icon="diagram-project" href="/corelib/realms/patterns">
+    Complete examples
+  </Card>
+</CardGroup>

@@ -1,31 +1,29 @@
 ---
-title: "Enhanced Input Overview"
+title: "Enhanced Input"
 icon: "gamepad"
-description: "CoreLib's contextual, rebindable input system"
+description: "Typed, context-aware input system with modifiers, triggers, and priority-based contexts"
 ---
 
 <Info>
-The **Enhanced Input** system provides contextual, rebindable input handling with comprehensive editor tooling.
+**Enhanced Input** is a powerful abstraction layer over s&box's native input system, inspired by Unreal Engine 5's Enhanced Input. Define typed actions, apply modifier pipelines, configure complex trigger conditions, and manage priority-based input contexts - all with full editor support.
 </Info>
 
 ---
 
-## What is Enhanced Input?
-
-Enhanced Input is CoreLib's abstraction layer over s&box's raw input APIs. It provides:
+## Core components
 
 <CardGroup cols={2}>
-  <Card title="Input actions" icon="bolt">
-    Named actions like "Jump" or "Fire" instead of raw key codes
+  <Card title="Actions" icon="bolt" href="/corelib/input/actions">
+    Named input operations with typed values (Bool, Float, Vector2, Vector3)
   </Card>
-  <Card title="Contexts" icon="layer-group">
-    Group actions by game state (menu, gameplay, vehicle)
+  <Card title="Modifiers" icon="sliders" href="/corelib/input/modifiers">
+    Transform raw input (Deadzone, Scale, Normalize, Negate, Clamp)
   </Card>
-  <Card title="Rebinding" icon="keyboard">
-    Players can customise controls at runtime
+  <Card title="Triggers" icon="hand-pointer" href="/corelib/input/triggers">
+    Define when actions fire (Press, Hold, Tap, DoubleTap, Chorded)
   </Card>
-  <Card title="Editor tooling" icon="window">
-    Visual authoring and testing
+  <Card title="Contexts" icon="layer-group" href="/corelib/input/contexts">
+    Priority-based groups that handle, block, or consume input
   </Card>
 </CardGroup>
 
@@ -34,142 +32,150 @@ Enhanced Input is CoreLib's abstraction layer over s&box's raw input APIs. It pr
 ## Why use Enhanced Input?
 
 <Tabs>
-  <Tab title="Without Enhanced Input">
+  <Tab title="Traditional approach">
+    **Scattered input logic with hardcoded values**
+
     ```csharp
-    // Hardcoded, scattered, hard to rebind
-    void Update()
+    // In PlayerController.Update()
+    if (Input.Pressed("jump"))
     {
-        if (Input.Pressed(InputButton.Jump))
-            Jump();
-
-        if (Input.Pressed(InputButton.Attack1))
-            Fire();
-
-        // What about menus? Vehicles? Rebinding?
+        Jump();
     }
+
+    // Hardcoded deadzone
+    var move = Input.AnalogMove;
+    if (move.Length < 0.2f) move = Vector2.Zero;
+
+    // Custom hold timer
+    _fireHoldTime += Time.Delta;
+    if (Input.Down("attack1") && _fireHoldTime > 0.5f)
+    {
+        Fire();
+        _fireHoldTime = 0f;
+    }
+
+    // Manual context checks
+    if (_isMenuOpen && Input.Pressed("jump"))
+        return; // Blocked
     ```
 
     **Problems:**
-    - Keys hardcoded throughout codebase
-    - No easy rebinding
-    - No context awareness
-    - Difficult to maintain
+    - 🔴 Input logic scattered throughout gameplay code
+    - 🔴 Modifiers (deadzones) hardcoded everywhere
+    - 🔴 Complex patterns require custom state tracking
+    - 🔴 Context priority unclear and error-prone
+    - 🔴 No designer tooling
+    - 🔴 String-based action names (typo-prone)
   </Tab>
-  <Tab title="With Enhanced Input">
-    ```csharp
-    // Clean, rebindable, context-aware
-    void Update()
-    {
-        if (InputSystem.IsActionPressed("jump"))
-            Jump();
+  <Tab title="Enhanced Input">
+    **Centralized, data-driven configuration**
 
-        if (InputSystem.IsActionPressed("fire"))
-            Fire();
+    ```csharp
+    // Actions defined in editor (.inputact resources)
+    // - Jump: Bool, Pressed trigger
+    // - Move: Vector2, Deadzone 0.2
+    // - Fire: Bool, Hold 0.5s trigger
+
+    // Auto-generated typed handles
+    public static class EnhancedInput
+    {
+        public static BoolAction Jump { get; }
+        public static Vector2Action Move { get; }
+        public static BoolAction Fire { get; }
+    }
+
+    // Clean gameplay code
+    public class PlayerController : InputComponent
+    {
+        protected override void RegisterInputBindings()
+        {
+            Bind(EnhancedInput.Jump).OnTriggered(Jump);
+            Bind(EnhancedInput.Fire).OnTriggered(Fire);
+        }
+
+        protected override void OnUpdate()
+        {
+            var move = EnhancedInput.Move.Value; // Deadzone already applied
+            CharacterController.Move(move);
+        }
+
+        void Jump() { /* Pure gameplay logic */ }
+        void Fire() { /* Pure gameplay logic */ }
     }
     ```
 
     **Benefits:**
-    - Actions defined in one place
-    - Rebinding built-in
-    - Context switching automatic
-    - Editor tooling included
+    - ✅ Clear separation: config (editor) vs logic (code)
+    - ✅ Type-safe APIs with IntelliSense
+    - ✅ Priority-based contexts (automatic blocking)
+    - ✅ Complex patterns without state tracking
+    - ✅ Designer-friendly (tweak in editor)
+    - ✅ Testable (mock service)
   </Tab>
 </Tabs>
 
 ---
 
-## Core concepts
+## When to use this system
 
-```mermaid
-graph TD
-    subgraph Authoring["Editor Authoring"]
-        A[Input Actions]
-        B[Input Bindings]
-        C[Input Contexts]
-    end
-
-    subgraph Runtime["Runtime"]
-        D[Input System]
-        E[Active Context]
-        F[Current Bindings]
-    end
-
-    A --> D
-    B --> F
-    C --> E
-    E --> D
-    F --> D
-
-    subgraph Game["Game Code"]
-        G[Query Actions]
-    end
-
-    G --> D
-```
-
-<AccordionGroup>
-  <Accordion title="Input Actions" icon="bolt">
-    Named actions that represent player intent:
-    - `jump`, `fire`, `interact`, `move`
-    - Define what the player can do
-    - Independent of how they do it
-  </Accordion>
-
-  <Accordion title="Input Bindings" icon="keyboard">
-    Connections between hardware inputs and actions:
-    - `Space` → `jump`
-    - `Left Click` → `fire`
-    - Can have multiple bindings per action
-    - Players can modify at runtime
-  </Accordion>
-
-  <Accordion title="Input Contexts" icon="layer-group">
-    Collections of active actions for a game state:
-    - "Gameplay" context: movement, combat actions
-    - "Menu" context: navigation, selection
-    - "Vehicle" context: driving controls
-    - Only one context active at a time
-  </Accordion>
-</AccordionGroup>
+<CardGroup cols={2}>
+  <Card title="Good fit" icon="check" color="#16A34A">
+    - Medium to large games (5+ distinct actions)
+    - Projects with designers tuning input feel
+    - Games with UI overlays needing priority-based blocking
+    - Complex input patterns (charge attacks, combos)
+    - Multiplayer games requiring input validation
+  </Card>
+  <Card title="Consider alternatives" icon="circle-xmark" color="#EAB308">
+    - Small prototypes with 2-3 simple buttons
+    - Single-screen games with no context switching
+    - Projects where `Input.Down()` is sufficient
+    - Preference for code-only configuration
+  </Card>
+</CardGroup>
 
 ---
 
 ## Quick example
 
 <Steps>
-  <Step title="Define actions in the editor">
-    Use the Input Editor to create actions like `jump`, `fire`, `move`.
+  <Step title="Ensure InputModule exists">
+    The `InputModule` component should be added to your scene as a child of `CoreRoot`:
+
+    ```
+    GameObject: CoreRoot
+    ├─ Component: CoreRoot
+    ├─ Component: InputModule (Auto-Load Resources: true)
+    └─ ... other CoreLib modules
+    ```
   </Step>
 
-  <Step title="Assign default bindings">
-    Map `Space` to `jump`, `Left Click` to `fire`, etc.
+  <Step title="Create an input action">
+    Open the **Input Editor** window (search for "Input Editor" in the editor's tool menu).
+
+    In the **Asset Browser** dock (left side):
+    1. Find the **Actions** section
+    2. Click the **+** button next to "Actions"
+    3. Type a name (e.g., "jump") and press Enter
+    4. Configure in the **Inspector** dock (right side):
+       - **S&box Action**: "jump"
+       - **Value Type**: Bool
+       - **Triggers**: [Pressed]
+    5. **Save** (Ctrl+S) - automatically generates typed code
   </Step>
 
-  <Step title="Create contexts">
-    Group actions into contexts like "Gameplay" and "Menu".
-  </Step>
-
-  <Step title="Use in code">
+  <Step title="Bind in gameplay code">
     ```csharp
-    public class PlayerController : Component
+    public class PlayerController : InputComponent
     {
-        protected override void OnUpdate()
+        protected override void RegisterInputBindings()
         {
-            // Check digital action
-            if (InputSystem.IsActionPressed("jump"))
-            {
-                PerformJump();
-            }
+            Bind(EnhancedInput.Jump).OnTriggered(OnJump);
+        }
 
-            // Check analog action
-            var moveInput = InputSystem.GetAxis2D("move");
-            ApplyMovement(moveInput);
-
-            // Check action state
-            if (InputSystem.IsActionHeld("fire"))
-            {
-                ContinueFiring();
-            }
+        void OnJump()
+        {
+            GetComponent<Rigidbody>().ApplyForce(Vector3.Up * 1000f);
         }
     }
     ```
@@ -178,91 +184,89 @@ graph TD
 
 ---
 
-## Action types
-
-| Type | Description | Example |
-|------|-------------|---------|
-| **Digital** | On/off state | Jump, Fire, Interact |
-| **Axis1D** | Single axis value | Throttle, Zoom |
-| **Axis2D** | Two-axis value | Movement, Look |
-
-```csharp
-// Digital - returns bool
-bool jumping = InputSystem.IsActionPressed("jump");
-
-// Axis1D - returns float
-float throttle = InputSystem.GetAxis1D("throttle");
-
-// Axis2D - returns Vector2
-Vector2 movement = InputSystem.GetAxis2D("move");
-```
-
----
-
-## Context switching
-
-<CardGroup cols={2}>
-  <Card title="Push context" icon="arrow-right">
-    ```csharp
-    // Enter menu
-    InputSystem.PushContext("menu");
-    ```
-  </Card>
-  <Card title="Pop context" icon="arrow-left">
-    ```csharp
-    // Return to previous
-    InputSystem.PopContext();
-    ```
-  </Card>
-</CardGroup>
-
-Contexts stack, so you can layer them:
-
-```csharp
-// Player in gameplay
-InputSystem.SetActiveContext("gameplay");
-
-// Player opens inventory (gameplay paused)
-InputSystem.PushContext("inventory");
-
-// Player closes inventory (back to gameplay)
-InputSystem.PopContext();
-```
-
----
-
-## Features at a glance
+## Key features
 
 | Feature | Description |
 |---------|-------------|
-| **Rebinding** | Players can change bindings at runtime |
-| **Persistence** | Bindings saved and restored automatically |
-| **Modifiers** | Shift+Key, Ctrl+Key combinations |
-| **Chords** | Multi-key combinations |
-| **Gamepad** | Controller support built-in |
-| **Validation** | Editor catches conflicts and issues |
+| **Type-safe actions** | BoolAction, FloatAction, Vector2Action, Vector3Action with IntelliSense |
+| **Modifier pipeline** | Deadzone, Scale, Normalize, Negate, Clamp - configured in editor |
+| **Complex triggers** | Hold, Tap, DoubleTap, Chorded patterns without custom state tracking |
+| **Priority contexts** | UI blocks gameplay automatically based on priority |
+| **Hot-reload** | Tweak input feel without recompiling |
+| **Component-based binding** | Automatic lifecycle management with InputComponent |
+
+---
+
+## How it works
+
+```mermaid
+graph TD
+    A[Raw Input] --> B[S&box Input API]
+    B --> C[SandboxInputAdapter]
+    C --> D[InputService]
+    D --> E[Apply Modifiers]
+    E --> F[Update State Timing]
+    F --> G[Evaluate Contexts]
+    G --> H{Blocked?}
+    H -->|No| I[Evaluate Triggers]
+    H -->|Yes| J[Phase = None]
+    I --> K[Dispatch Events]
+    K --> L[InputComponent Handlers]
+    K --> M[Static API Subscribers]
+```
+
+<AccordionGroup>
+  <Accordion title="Execution flow" icon="diagram-project">
+    Each frame, for every registered action:
+    1. **Read raw value** from s&box Input API
+    2. **Apply modifiers** in sequence (deadzone → scale → normalize, etc.)
+    3. **Update state timing** (track how long action has been held)
+    4. **Evaluate contexts** - check if action is blocked by higher-priority context
+    5. **Evaluate triggers** - determine current phase (Started/Triggered/Completed/Canceled)
+    6. **Dispatch events** - notify all subscribers if phase changed
+  </Accordion>
+
+  <Accordion title="Context evaluation" icon="layer-group">
+    Contexts are evaluated from **highest to lowest priority**:
+    - Higher priority contexts see input first
+    - **Blocked actions** are consumed without dispatching
+    - **Handled actions** fire in that context
+    - **ConsumesInput** stops propagation to lower contexts
+  </Accordion>
+
+  <Accordion title="Type safety" icon="shield-halved">
+    Multiple layers ensure type safety:
+    - **InputValueType** enum: Bool, Float, Vector2, Vector3
+    - **Typed action handles**: BoolAction, FloatAction, Vector2Action, Vector3Action
+    - **Auto-generated code**: EnhancedInput.Jump (BoolAction) vs EnhancedInput.Move (Vector2Action)
+    - **Compile-time validation**: Cannot pass Vector2Action where BoolAction expected
+  </Accordion>
+</AccordionGroup>
 
 ---
 
 ## In this section
 
-<CardGroup cols={2}>
-  <Card title="Concepts" icon="lightbulb" href="/corelib/input/concepts">
-    Deep dive into input system concepts
+<CardGroup cols={3}>
+  <Card title="Getting Started" icon="rocket" href="/corelib/input/getting-started">
+    Step-by-step setup guide
   </Card>
-  <Card title="Runtime Usage" icon="code" href="/corelib/input/runtime-usage">
-    Using input in gameplay code
+  <Card title="Actions" icon="bolt" href="/corelib/input/actions">
+    Action types and value access
   </Card>
-  <Card title="Rebinding" icon="keyboard" href="/corelib/input/rebinding">
-    Implementing player rebinding
+  <Card title="Modifiers" icon="sliders" href="/corelib/input/modifiers">
+    Transform raw input values
+  </Card>
+  <Card title="Triggers" icon="hand-pointer" href="/corelib/input/triggers">
+    Control when actions fire
+  </Card>
+  <Card title="Contexts" icon="layer-group" href="/corelib/input/contexts">
+    Priority-based input management
+  </Card>
+  <Card title="Usage Patterns" icon="code" href="/corelib/input/usage-patterns">
+    Common implementation patterns
   </Card>
   <Card title="Debugging" icon="bug" href="/corelib/input/debugging">
-    Troubleshooting input issues
-  </Card>
-  <Card title="Best Practices" icon="star" href="/corelib/input/best-practices">
-    Recommended patterns
-  </Card>
-  <Card title="Input Editor" icon="window" href="/editor/tools/input-editor">
-    Editor tooling guide
+    Troubleshooting and debugging
   </Card>
 </CardGroup>

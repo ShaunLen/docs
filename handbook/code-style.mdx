@@ -30,46 +30,20 @@ Modern C# features are welcome when they **improve** readability, not when they 
 
 ---
 
-## Naming conventions
+## Naming and file organization
 
-<Tabs>
-  <Tab title="Types">
-    Use **PascalCase**. Names should be descriptive and unambiguous.
+<Note>
+For comprehensive naming rules, file organization, and folder structure conventions, see the dedicated reference pages below.
+</Note>
 
-    | Good | Bad |
-    |------|-----|
-    | `InteractionProvider` | `Manager` |
-    | `InputContextStack` | `Utils` |
-    | `WeaponDefinition` | `Data2` |
-  </Tab>
-  <Tab title="Methods">
-    Use **PascalCase**. Name methods as actions.
-
-    | Good | Bad |
-    |------|-----|
-    | `ApplyInput` | `Handle` |
-    | `ValidateConfiguration` | `DoThing` |
-    | `RegisterInteraction` | `Process` |
-  </Tab>
-  <Tab title="Variables">
-    Use **camelCase**. Describe intent, not mechanics.
-
-    | Good | Bad |
-    |------|-----|
-    | `remainingHealth` | `hp` |
-    | `activeWeapon` | `w` |
-    | `playerCount` | `n` |
-  </Tab>
-  <Tab title="Booleans">
-    Name so they read naturally in conditionals.
-
-    | Good | Bad |
-    |------|-----|
-    | `isEnabled` | `enabledFlag` |
-    | `hasAuthority` | `authority` |
-    | `canInteract` | `doThing` |
-  </Tab>
-</Tabs>
+<CardGroup cols={2}>
+  <Card title="Naming Conventions" icon="tag" href="/handbook/naming">
+    Detailed rules for naming types, methods, variables, files, and more
+  </Card>
+  <Card title="Folder Structure" icon="folder-tree" href="/handbook/folder-structure">
+    Project organization and namespace mapping
+  </Card>
+</CardGroup>
 
 ---
 
@@ -354,7 +328,7 @@ These guidelines exist to support those goals, not to constrain reasonable judgm
   <Card title="Architecture Conventions" icon="sitemap" href="/handbook/architecture-conventions">
     How we structure systems and projects
   </Card>
-  <Card title="Naming Conventions" icon="tag" href="/reference/naming">
-    Detailed naming rules and examples
+  <Card title="Terminology" icon="book" href="/handbook/terminology">
+    Standard terms and definitions
   </Card>
 </CardGroup>

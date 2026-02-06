@@ -43,10 +43,9 @@ Internal team members at Northbound who are:
 
 ### Navigation (docs.json)
 - **Home**: Organization overview, philosophy, how we work
-- **Handbook**: Engineering principles, coding standards, workflow (git, PRs, releases)
+- **Handbook**: Engineering principles, coding standards (including naming, folder structure, terminology), workflow (git, PRs, releases)
 - **CoreLib**: System documentation for all CoreLib features
 - **Integrations**: Third-party library usage (GameEvents, etc.)
-- **Reference**: Conventions for naming, folder structure, terminology
 
 ### Page organization patterns
 - **Overview pages**: Introduce concepts with cards showing key features
@@ -243,9 +242,9 @@ Types: feat, fix, docs, style, refactor, test, chore
 
 ### Do
 - Reference existing pages as examples when creating new content
-- Use consistent terminology from `reference/terminology.mdx`
-- Follow naming conventions from `reference/naming.mdx`
-- Check folder structure conventions in `reference/folder-structure.mdx`
+- Use consistent terminology from `handbook/terminology.mdx`
+- Follow naming conventions from `handbook/naming.mdx`
+- Check folder structure conventions in `handbook/folder-structure.mdx`
 - Link to related pages at the bottom of content pages
 - Keep code examples focused and practical
 
@@ -254,10 +253,9 @@ Types: feat, fix, docs, style, refactor, test, chore
 ### File locations
 - Navigation config: `docs.json`
 - Homepage: `index.mdx`
-- Handbook: `handbook/*.mdx`
+- Handbook: `handbook/*.mdx` (includes coding standards and conventions)
 - CoreLib docs: `corelib/**/*.mdx`
 - Editor docs: `editor/**/*.mdx`
-- Reference: `reference/*.mdx`
 
 ### Key concepts to understand
 - CoreLib is the shared foundation library
